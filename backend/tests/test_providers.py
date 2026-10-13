@@ -15,6 +15,7 @@ from app.providers.base import (
     ModelUnavailable,
     ProviderError,
     QuotaExceeded,
+    Usage,
 )
 from app.providers.openai_compat import OpenAIProvider, OpenRouterProvider
 
@@ -34,7 +35,11 @@ def sse(*events: str) -> httpx2.Response:
 
 
 async def collect(stream) -> str:
-    return "".join([chunk async for chunk in stream])
+    return "".join([chunk async for chunk in stream if isinstance(chunk, str)])
+
+
+async def usage_of(stream) -> Usage | None:
+    return next((chunk for chunk in [c async for c in stream] if isinstance(chunk, Usage)), None)
 
 
 # --- OpenRouter : catalogue et validation de clé -------------------------------------
@@ -263,7 +268,7 @@ async def test_anthropic_refusal_is_reported_after_the_text():
             "sk-ant-user", ModelInfo(id="claude-test", name="Claude"), HELLO
         ):
             chunks.append(chunk)
-    assert chunks == ["Je"]
+    assert chunks == ["Je", Usage(input_tokens=1, output_tokens=2)]
 
 
 @pytest.mark.parametrize(

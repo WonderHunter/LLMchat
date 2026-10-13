@@ -10,7 +10,7 @@ from sqlmodel import Session
 from app.db import engine
 from app.deps import CurrentUser, SessionDep
 from app.models import Conversation, Message, User, utcnow
-from app.providers.base import ChatMessage, ModelInfo, Provider, ProviderError
+from app.providers.base import ChatMessage, ModelInfo, Provider, ProviderError, Usage
 from app.providers.registry import PROVIDERS
 from app.routers.conversations import get_messages, get_owned_conversation
 from app.routers.keys import get_key
@@ -70,7 +70,21 @@ async def _resolve(
     return provider, key, model
 
 
-def _save_reply(conversation_id: str, provider_id: str, model_id: str, text: str) -> dict | None:
+def _cost(model: ModelInfo, usage: Usage) -> float | None:
+    """Coût en dollars : celui annoncé par le fournisseur, sinon calculé d'après ses tarifs."""
+    if usage.cost is not None:
+        return usage.cost
+    if model.free:
+        return 0.0
+    if model.input_price is None or model.output_price is None:
+        return None
+    total = usage.input_tokens * model.input_price + usage.output_tokens * model.output_price
+    return total / 1_000_000
+
+
+def _save_reply(
+    conversation_id: str, provider_id: str, model: ModelInfo, text: str, usage: Usage | None
+) -> dict | None:
     if not text:
         return None
     # Session propre au flux : celle de la requête peut être fermée quand on arrive ici.
@@ -80,7 +94,10 @@ def _save_reply(conversation_id: str, provider_id: str, model_id: str, text: str
             role="assistant",
             content=text,
             provider=provider_id,
-            model=model_id,
+            model=model.id,
+            input_tokens=usage.input_tokens if usage else None,
+            output_tokens=usage.output_tokens if usage else None,
+            cost=_cost(model, usage) if usage else None,
         )
         session.add(message)
         conversation = session.get(Conversation, conversation_id)
@@ -102,10 +119,14 @@ async def stream_reply(
 ) -> AsyncIterator[str]:
     yield _sse("start", start)
     parts: list[str] = []
+    usage: Usage | None = None
     error: ProviderError | None = None
     saved = None
     try:
         async for chunk in provider.stream_chat(key, model, history):
+            if isinstance(chunk, Usage):
+                usage = chunk
+                continue
             parts.append(chunk)
             yield _sse("delta", {"text": chunk})
     except ProviderError as exc:
@@ -115,7 +136,7 @@ async def stream_reply(
         error = ProviderError("Une erreur interne est survenue pendant la génération.")
     finally:
         # Exécuté aussi quand le client coupe la connexion : la réponse partielle est gardée.
-        saved = _save_reply(conversation_id, provider.id, model.id, "".join(parts))
+        saved = _save_reply(conversation_id, provider.id, model, "".join(parts), usage)
     if error is not None:
         logger.warning("Génération interrompue chez %s (%s)", provider.id, error.code)
         yield _sse("error", {"code": error.code, "message": error.message})

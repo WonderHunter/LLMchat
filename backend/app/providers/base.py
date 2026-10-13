@@ -17,6 +17,16 @@ class ModelInfo:
     output_price: float | None = None
 
 
+@dataclass(frozen=True)
+class Usage:
+    """Consommation d'une réponse, émise par le fournisseur à la fin du flux."""
+
+    input_tokens: int
+    output_tokens: int
+    # Coût en dollars, quand le fournisseur l'annonce lui-même.
+    cost: float | None = None
+
+
 class ProviderError(Exception):
     """Erreur d'un fournisseur, avec un message affichable tel quel à l'utilisateur."""
 
@@ -80,5 +90,5 @@ class Provider(ABC):
     @abstractmethod
     def stream_chat(
         self, key: str, model: ModelInfo, messages: list[ChatMessage]
-    ) -> AsyncIterator[str]:
-        """Génère la réponse morceau par morceau."""
+    ) -> AsyncIterator[str | Usage]:
+        """Génère la réponse morceau par morceau, puis sa consommation si elle est connue."""

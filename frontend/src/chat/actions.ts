@@ -81,6 +81,9 @@ async function run(
           content: partial,
           provider: selection?.provider ?? null,
           model: selection?.model ?? null,
+          input_tokens: null,
+          output_tokens: null,
+          cost: null,
           created_at: new Date().toISOString(),
         })
       }

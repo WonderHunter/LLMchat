@@ -16,6 +16,27 @@ function UserBubble({ text }: { text: string }) {
 
 const shortModel = (model: string | null) => model?.split('/').pop() ?? ''
 
+const integer = new Intl.NumberFormat('fr-FR')
+
+function formatCost(cost: number): string {
+  if (cost === 0) return 'gratuit'
+  // Les petites réponses coûtent des fractions de centime : on garde assez de décimales.
+  const digits = cost < 0.01 ? 4 : 2
+  return `${cost.toLocaleString('fr-FR', { minimumFractionDigits: digits, maximumFractionDigits: digits })} $`
+}
+
+function Usage({ message }: { message: Message }) {
+  if (message.input_tokens === null || message.output_tokens === null) return null
+  const total = message.input_tokens + message.output_tokens
+  const detail = `${integer.format(message.input_tokens)} tokens en entrée, ${integer.format(message.output_tokens)} en sortie`
+  return (
+    <span className="text-xs" title={detail}>
+      · {integer.format(total)} tokens
+      {message.cost !== null && ` · ${formatCost(message.cost)}`}
+    </span>
+  )
+}
+
 const MessageView = memo(function MessageView({
   message,
   onRegenerate,
@@ -41,6 +62,7 @@ const MessageView = memo(function MessageView({
           </button>
         )}
         <span className="ml-1.5 text-xs">{shortModel(message.model)}</span>
+        <Usage message={message} />
       </div>
     </div>
   )

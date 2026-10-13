@@ -52,4 +52,9 @@ class Message(SQLModel, table=True):
     content: str
     provider: str | None = None
     model: str | None = None
+    # Consommation des réponses ; vide pour les questions et quand le fournisseur ne dit rien.
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    # En dollars. Vide si ni le fournisseur ni son catalogue ne donnent de prix.
+    cost: float | None = None
     created_at: datetime = Field(default_factory=utcnow)

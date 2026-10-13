@@ -13,6 +13,7 @@ from app.providers.base import (
     ProviderError,
     ProviderUnavailable,
     QuotaExceeded,
+    Usage,
 )
 
 # Plafond de sortie demandé en streaming ; réduit au plafond du modèle s'il est plus bas.
@@ -79,7 +80,7 @@ class AnthropicProvider(Provider):
 
     async def stream_chat(
         self, key: str, model: ModelInfo, messages: list[ChatMessage]
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[str | Usage]:
         system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
         turns = [m for m in messages if m["role"] != "system"]
         max_tokens = min(model.max_output_tokens or _FALLBACK_OUTPUT_TOKENS, _MAX_OUTPUT_TOKENS)
@@ -96,5 +97,6 @@ class AnthropicProvider(Provider):
                     final = await stream.get_final_message()
         except anthropic.AnthropicError as exc:
             raise self._translate(exc) from exc
+        yield Usage(input_tokens=final.usage.input_tokens, output_tokens=final.usage.output_tokens)
         if final.stop_reason == "refusal":
             raise ProviderError("Le modèle a refusé de répondre à cette demande.")
