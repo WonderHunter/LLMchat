@@ -3,7 +3,7 @@
 Webapp de chat multi-utilisateurs. Chaque utilisateur apporte sa propre clé API (BYOK) pour
 OpenRouter, OpenAI ou Anthropic, et discute avec les modèles auxquels sa clé donne accès.
 
-- **Backend** : Python 3.12, FastAPI, SQLite (SQLModel).
+- **Backend** : Python 3.13, FastAPI, SQLite (SQLModel).
 - **Frontend** : React, Vite, Tailwind.
 
 ## Fonctionnalités
@@ -21,7 +21,7 @@ OpenRouter, OpenAI ou Anthropic, et discute avec les modèles auxquels sa clé d
 
 ## Prérequis
 
-- [uv](https://docs.astral.sh/uv/) (installe Python 3.12 si besoin)
+- [uv](https://docs.astral.sh/uv/) (installe Python 3.13 si besoin)
 - Node.js 22 et [pnpm](https://pnpm.io/)
 
 ## Installation
