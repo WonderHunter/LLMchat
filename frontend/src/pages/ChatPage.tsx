@@ -5,12 +5,15 @@ import { useConversation, useMe } from '../api/hooks'
 import { regenerate, sendMessage, stopStreaming } from '../chat/actions'
 import { useChat } from '../chat/store'
 import { useSelection } from '../chat/useSelection'
+import { ArtifactPanel } from '../components/ArtifactPanel'
 import { Composer } from '../components/Composer'
 import { Logo } from '../components/Logo'
 import { MessageList } from '../components/MessageList'
 import { ModelPicker } from '../components/ModelPicker'
 import { SettingsDialog } from '../components/SettingsDialog'
 import { Sidebar } from '../components/Sidebar'
+
+const isNarrow = () => window.innerWidth < 768
 
 function greeting(email: string | undefined): string {
   const hello = new Date().getHours() >= 18 ? 'Bonsoir' : 'Bonjour'
@@ -30,6 +33,7 @@ export function ChatPage() {
   const toggleSidebar = useChat((state) => state.toggleSidebar)
   const setSelection = useChat((state) => state.setSelection)
   const setSettingsOpen = useChat((state) => state.setSettingsOpen)
+  const setArtifact = useChat((state) => state.setArtifact)
 
   // En ouvrant une conversation, on reprend le modèle avec lequel elle a été menée.
   const conversationId = conversation?.id
@@ -46,6 +50,12 @@ export function ChatPage() {
   useEffect(() => {
     if (notFound) navigate('/', { replace: true })
   }, [notFound, navigate])
+
+  // En changeant de conversation : le panneau se ferme et, sur petit écran, la barre latérale aussi.
+  useEffect(() => {
+    setArtifact(null)
+    if (isNarrow() && useChat.getState().sidebarOpen) toggleSidebar()
+  }, [id, setArtifact, toggleSidebar])
 
   // La génération en cours ne s'affiche que dans la conversation qu'elle concerne.
   const here = stream !== null && stream.conversationId === (id ?? null)
@@ -99,7 +109,16 @@ export function ChatPage() {
 
   return (
     <div className="flex h-full">
-      {sidebarOpen && <Sidebar />}
+      {sidebarOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-20 bg-black/40 md:hidden"
+            onClick={toggleSidebar}
+            aria-hidden="true"
+          />
+          <Sidebar />
+        </>
+      )}
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-1 px-3">
           {!sidebarOpen && (
@@ -157,6 +176,7 @@ export function ChatPage() {
           </>
         )}
       </main>
+      <ArtifactPanel />
       <SettingsDialog />
     </div>
   )
