@@ -27,7 +27,7 @@ export function ChatPage() {
   const navigate = useNavigate()
   const { data: user } = useMe()
   const { data: conversation, isError: notFound } = useConversation(id)
-  const { selection, loaded, providers } = useSelection()
+  const { selection, loaded, providers, current } = useSelection()
   const stream = useChat((state) => state.stream)
   const error = useChat((state) => state.error)
   const sidebarOpen = useChat((state) => state.sidebarOpen)
@@ -97,10 +97,11 @@ export function ChatPage() {
         key={id ?? 'new'}
         streaming={stream !== null}
         disabled={!selection}
+        acceptsImages={current?.model.accepts_images ?? false}
         onStop={stopStreaming}
-        onSend={(text) =>
+        onSend={(text, attachments) =>
           selection
-            ? sendMessage(id ?? null, text, selection, (newId) =>
+            ? sendMessage(id ?? null, text, attachments, selection, (newId) =>
                 navigate(`/c/${newId}`, { replace: true }),
               )
             : Promise.resolve(false)
@@ -166,7 +167,11 @@ export function ChatPage() {
             >
               <MessageList
                 messages={messages}
-                pendingQuestion={here ? stream.question : null}
+                pendingQuestion={
+                  here && stream.question !== null
+                    ? { text: stream.question, attachments: stream.attachments }
+                    : null
+                }
                 streamingText={here ? stream.text : null}
                 error={visibleError}
                 onRegenerate={

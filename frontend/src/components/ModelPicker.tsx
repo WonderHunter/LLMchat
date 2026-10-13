@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Search } from 'lucide-react'
+import { Check, ChevronDown, Image as ImageIcon, Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ModelInfo } from '../api/types'
 import { useChat } from '../chat/store'
@@ -123,6 +123,11 @@ export function ModelPicker() {
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-hover"
                     >
                       <span className="min-w-0 flex-1 truncate">{model.name}</span>
+                      {model.accepts_images && (
+                        <span title="Lit les images" className="shrink-0 text-muted">
+                          <ImageIcon className="size-4" aria-label="Lit les images" />
+                        </span>
+                      )}
                       <Badge free={model.free} />
                       <Check
                         className={`size-4 shrink-0 text-accent ${selected ? '' : 'invisible'}`}
@@ -133,6 +138,10 @@ export function ModelPicker() {
               </div>
             ))}
           </div>
+          <p className="flex items-center gap-1.5 border-t border-border px-4 py-2 text-xs text-muted">
+            <ImageIcon className="size-3.5" aria-hidden="true" />
+            Le modèle lit les images jointes
+          </p>
         </div>
       )}
     </div>

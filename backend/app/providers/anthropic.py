@@ -1,3 +1,4 @@
+import base64
 from collections.abc import AsyncIterator
 
 import anthropic
@@ -19,6 +20,33 @@ from app.providers.base import (
 # Plafond de sortie demandé en streaming ; réduit au plafond du modèle s'il est plus bas.
 _MAX_OUTPUT_TOKENS = 64000
 _FALLBACK_OUTPUT_TOKENS = 4096
+
+
+def _wire_message(message: ChatMessage) -> dict:
+    """Message au format de l'API Messages : les images précèdent le texte."""
+    images = message.get("images")
+    if not images:
+        return {"role": message["role"], "content": message["content"]}
+    blocks: list[dict] = [
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": image.media_type,
+                "data": base64.b64encode(image.data).decode(),
+            },
+        }
+        for image in images
+    ]
+    if message["content"]:
+        blocks.append({"type": "text", "text": message["content"]})
+    return {"role": message["role"], "content": blocks}
+
+
+def _reads_images(model) -> bool:
+    # Sans information sur le modèle, on suppose que oui : c'est le cas de tous les modèles actuels.
+    capability = getattr(getattr(model, "capabilities", None), "image_input", None)
+    return capability.supported if capability is not None else True
 
 
 class AnthropicProvider(Provider):
@@ -71,6 +99,7 @@ class AnthropicProvider(Provider):
             ModelInfo(
                 id=model.id,
                 name=model.display_name or model.id,
+                accepts_images=_reads_images(model),
                 context_length=model.max_input_tokens,
                 max_output_tokens=model.max_tokens,
             )
@@ -82,7 +111,7 @@ class AnthropicProvider(Provider):
         self, key: str, model: ModelInfo, messages: list[ChatMessage]
     ) -> AsyncIterator[str | Usage]:
         system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
-        turns = [m for m in messages if m["role"] != "system"]
+        turns = [_wire_message(m) for m in messages if m["role"] != "system"]
         max_tokens = min(model.max_output_tokens or _FALLBACK_OUTPUT_TOKENS, _MAX_OUTPUT_TOKENS)
         try:
             async with self._client(key) as client:

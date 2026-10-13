@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Selection } from '../api/types'
+import type { Attachment, Selection } from '../api/types'
 
 export interface StreamState {
   /** null tant que le serveur n'a pas créé la conversation. */
   conversationId: string | null
   /** Question affichée en attendant que le serveur l'ait enregistrée. */
   question: string | null
+  /** Pièces jointes de cette question, affichées avec elle. */
+  attachments: Attachment[]
   text: string
 }
 

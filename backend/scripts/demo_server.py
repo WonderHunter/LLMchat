@@ -97,9 +97,9 @@ Et une petite page à ouvrir dans le panneau latéral :
 </html>
 ```
 
-| Fournisseur | Modèle utilisé |
-| --- | --- |
-| {provider} | `{model}` |
+| Fournisseur | Modèle utilisé | Images reçues |
+| --- | --- | --- |
+| {provider} | `{model}` | {images} |
 """
 
 
@@ -120,7 +120,10 @@ class DemoProvider(Provider):
 
     async def stream_chat(self, key, model, messages):
         question = messages[-1]["content"]
-        reply = REPLY.format(question=question[:80], provider=self.label, model=model.id)
+        images = sum(len(m.get("images", [])) for m in messages)
+        reply = REPLY.format(
+            question=question[:80], provider=self.label, model=model.id, images=images
+        )
         pieces = reply.split(" ")
         await asyncio.sleep(0.6)
         for index, piece in enumerate(pieces):
@@ -140,12 +143,25 @@ DEMO_PROVIDERS = [
         "openrouter",
         "OpenRouter",
         [
-            ModelInfo(id="demo/eclair:free", name="Démo : Éclair (free)", free=True),
+            ModelInfo(
+                id="demo/eclair:free",
+                name="Démo : Éclair (free)",
+                free=True,
+                accepts_images=True,
+            ),
             ModelInfo(id="demo/brise:free", name="Démo : Brise (free)", free=True),
-            ModelInfo(id="demo/titan", name="Démo : Titan", input_price=3.0, output_price=15.0),
+            ModelInfo(
+                id="demo/titan",
+                name="Démo : Titan",
+                accepts_images=True,
+                input_price=3.0,
+                output_price=15.0,
+            ),
         ],
     ),
-    DemoProvider("openai", "OpenAI", [ModelInfo(id="gpt-demo", name="gpt-demo")]),
+    DemoProvider(
+        "openai", "OpenAI", [ModelInfo(id="gpt-demo", name="gpt-demo", accepts_images=True)]
+    ),
     DemoProvider("anthropic", "Anthropic", [ModelInfo(id="claude-demo", name="Claude Démo")]),
 ]
 

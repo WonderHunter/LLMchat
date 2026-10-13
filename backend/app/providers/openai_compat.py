@@ -1,3 +1,4 @@
+import base64
 import re
 from collections.abc import AsyncIterator
 
@@ -17,6 +18,25 @@ from app.providers.base import (
     QuotaExceeded,
     Usage,
 )
+
+
+def _wire_messages(messages: list[ChatMessage]) -> list[dict]:
+    """Messages au format « chat completions » : les images deviennent des URL de données."""
+    wired = []
+    for message in messages:
+        images = message.get("images")
+        if not images:
+            wired.append({"role": message["role"], "content": message["content"]})
+            continue
+        parts: list[dict] = (
+            [{"type": "text", "text": message["content"]}] if message["content"] else []
+        )
+        for image in images:
+            encoded = base64.b64encode(image.data).decode()
+            url = f"data:{image.media_type};base64,{encoded}"
+            parts.append({"type": "image_url", "image_url": {"url": url}})
+        wired.append({"role": message["role"], "content": parts})
+    return wired
 
 
 class OpenAICompatProvider(Provider):
@@ -65,7 +85,7 @@ class OpenAICompatProvider(Provider):
             async with self._client(key) as client:
                 stream = await client.chat.completions.create(
                     model=model.id,
-                    messages=messages,
+                    messages=_wire_messages(messages),
                     stream=True,
                     # Demande le décompte des tokens, envoyé dans le dernier morceau.
                     stream_options={"include_usage": True},
@@ -92,7 +112,9 @@ class OpenAIProvider(OpenAICompatProvider):
     label = "OpenAI"
     keys_url = "https://platform.openai.com/api-keys"
 
-    # L'API ne dit pas quels modèles acceptent « chat completions » : on filtre sur le nom.
+    # L'API ne dit ni quels modèles acceptent « chat completions », ni lesquels lisent les
+    # images : on se fie au nom. Les modèles récents lisent tous les images, sauf ceux-ci.
+    _NO_IMAGES = re.compile(r"^(gpt-3\.5|o1-mini|o1-preview|o3-mini)")
     _CHAT_PREFIX = re.compile(r"^(gpt-|chatgpt-|o\d)")
     _NOT_CHAT = (
         "instruct",
@@ -124,7 +146,12 @@ class OpenAIProvider(OpenAICompatProvider):
             if self._CHAT_PREFIX.match(model.id) and not any(w in model.id for w in self._NOT_CHAT)
         ]
         models.sort(key=lambda model: model.created or 0, reverse=True)
-        return [ModelInfo(id=model.id, name=model.id) for model in models]
+        return [
+            ModelInfo(
+                id=model.id, name=model.id, accepts_images=not self._NO_IMAGES.match(model.id)
+            )
+            for model in models
+        ]
 
 
 class OpenRouterProvider(OpenAICompatProvider):
@@ -157,7 +184,8 @@ class OpenRouterProvider(OpenAICompatProvider):
         data = (await self._get("/models", key)).json()["data"]
         models = []
         for item in data:
-            outputs = (item.get("architecture") or {}).get("output_modalities") or ["text"]
+            architecture = item.get("architecture") or {}
+            outputs = architecture.get("output_modalities") or ["text"]
             if "text" not in outputs:
                 continue
             pricing = item.get("pricing") or {}
@@ -166,6 +194,7 @@ class OpenRouterProvider(OpenAICompatProvider):
                     id=item["id"],
                     name=item.get("name") or item["id"],
                     free=item["id"].endswith(":free"),
+                    accepts_images="image" in (architecture.get("input_modalities") or []),
                     context_length=item.get("context_length"),
                     max_output_tokens=(item.get("top_provider") or {}).get("max_completion_tokens"),
                     input_price=_per_million(pricing.get("prompt")),

@@ -1,8 +1,18 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import Any
 
-ChatMessage = dict[str, str]  # {"role": "user" | "assistant" | "system", "content": "..."}
+
+@dataclass(frozen=True)
+class ImagePart:
+    media_type: str
+    data: bytes
+
+
+# {"role": "user" | "assistant" | "system", "content": "..."}, plus "images": [ImagePart]
+# quand le message en contient.
+ChatMessage = dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -10,6 +20,7 @@ class ModelInfo:
     id: str
     name: str
     free: bool = False
+    accepts_images: bool = False
     context_length: int | None = None
     max_output_tokens: int | None = None
     # Prix en dollars par million de tokens, quand le fournisseur les publie.

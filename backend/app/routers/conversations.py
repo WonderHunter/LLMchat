@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlmodel import Session, col, delete, select
 
+from app.attachments import describe
 from app.deps import CurrentUser, SessionDep
 from app.models import Conversation, Message
 from app.schemas import ConversationDetail, ConversationOut, MessageOut
@@ -45,7 +46,9 @@ def get_conversation(
     conversation_id: str, user: CurrentUser, session: SessionDep
 ) -> ConversationDetail:
     conversation = get_owned_conversation(session, user.id, conversation_id)
-    messages = [MessageOut(**m.model_dump()) for m in get_messages(session, conversation_id)]
+    rows = get_messages(session, conversation_id)
+    attachments = describe(session, [m.id for m in rows])
+    messages = [MessageOut(**m.model_dump(), attachments=attachments.get(m.id, [])) for m in rows]
     return ConversationDetail(**conversation.model_dump(), messages=messages)
 
 

@@ -1,3 +1,5 @@
+import type { Attachment } from './types'
+
 export class ApiError extends Error {
   status: number
 
@@ -32,6 +34,19 @@ export async function api<T>(
   if (!response.ok) throw await errorFromResponse(response)
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
+}
+
+/** Envoie un fichier à joindre au prochain message. */
+export async function uploadFile(file: File): Promise<Attachment> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch('/api/attachments', {
+    method: 'POST',
+    body: form,
+    credentials: 'same-origin',
+  })
+  if (!response.ok) throw await errorFromResponse(response)
+  return response.json() as Promise<Attachment>
 }
 
 /** Lit une réponse « text/event-stream » d'une requête POST, événement par événement. */

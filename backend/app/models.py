@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import LargeBinary, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -57,4 +57,21 @@ class Message(SQLModel, table=True):
     output_tokens: int | None = None
     # En dollars. Vide si ni le fournisseur ni son catalogue ne donnent de prix.
     cost: float | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class Attachment(SQLModel, table=True):
+    id: str = Field(default_factory=new_id, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True, ondelete="CASCADE")
+    # Vide tant que le fichier est envoyé mais pas encore joint à un message.
+    message_id: int | None = Field(
+        default=None, foreign_key="message.id", index=True, ondelete="CASCADE"
+    )
+    kind: str  # "image" ou "text"
+    filename: str
+    media_type: str
+    size: int
+    # Les images sont gardées telles quelles ; des documents, on ne garde que le texte.
+    data: bytes | None = Field(default=None, sa_type=LargeBinary)
+    text: str | None = None
     created_at: datetime = Field(default_factory=utcnow)

@@ -18,6 +18,7 @@ class ModelOut(BaseModel):
     id: str
     name: str
     free: bool
+    accepts_images: bool
     context_length: int | None
     input_price: float | None
     output_price: float | None

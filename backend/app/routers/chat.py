@@ -4,13 +4,21 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
-from sqlmodel import Session
+from pydantic import BaseModel, Field, model_validator
+from sqlmodel import Session, col, select
 
+from app.attachments import MAX_PER_MESSAGE, attachments_of, describe
 from app.db import engine
 from app.deps import CurrentUser, SessionDep
-from app.models import Conversation, Message, User, utcnow
-from app.providers.base import ChatMessage, ModelInfo, Provider, ProviderError, Usage
+from app.models import Attachment, Conversation, Message, User, utcnow
+from app.providers.base import (
+    ChatMessage,
+    ImagePart,
+    ModelInfo,
+    Provider,
+    ProviderError,
+    Usage,
+)
 from app.providers.registry import PROVIDERS
 from app.routers.conversations import get_messages, get_owned_conversation
 from app.routers.keys import get_key
@@ -29,7 +37,14 @@ class ChatIn(BaseModel):
     conversation_id: str | None = None
     provider: str
     model: str
-    content: str = Field(min_length=1, max_length=400_000)
+    content: str = Field(max_length=400_000)
+    attachment_ids: list[str] = Field(default_factory=list, max_length=MAX_PER_MESSAGE)
+
+    @model_validator(mode="after")
+    def _not_empty(self) -> "ChatIn":
+        if not self.content.strip() and not self.attachment_ids:
+            raise ValueError("Le message est vide")
+        return self
 
 
 class RegenerateIn(BaseModel):
@@ -49,6 +64,12 @@ def _sse(event: str, data: dict) -> str:
 
 def _dump(schema: type[BaseModel], row) -> dict:
     return schema(**row.model_dump()).model_dump(mode="json")
+
+
+def _dump_message(session: Session, message: Message) -> dict:
+    """Un message avec la description de ses pièces jointes."""
+    attachments = describe(session, [message.id]).get(message.id, [])
+    return MessageOut(**message.model_dump(), attachments=attachments).model_dump(mode="json")
 
 
 async def _resolve(
@@ -157,19 +178,65 @@ def _streaming_response(stream: AsyncIterator[str]) -> StreamingResponse:
     )
 
 
-def _history(messages: list[Message]) -> list[ChatMessage]:
-    return [{"role": m.role, "content": m.content} for m in messages]
+def _history(session: Session, messages: list[Message], model: ModelInfo) -> list[ChatMessage]:
+    """La conversation telle qu'elle est envoyée au modèle, pièces jointes comprises."""
+    attachments = attachments_of(session, [m.id for m in messages])
+    history: list[ChatMessage] = []
+    for message in messages:
+        documents, notes, images = [], [], []
+        for attachment in attachments.get(message.id, []):
+            name = attachment.filename.replace('"', "'")
+            if attachment.kind == "text":
+                documents.append(f'<fichier nom="{name}">\n{attachment.text}\n</fichier>')
+            elif model.accepts_images:
+                images.append(ImagePart(attachment.media_type, attachment.data))
+            else:
+                # Une image d'un message précédent, alors que le modèle a changé depuis.
+                notes.append(f"[Image « {name} » non transmise : ce modèle ne lit pas les images.]")
+        content = "\n\n".join(part for part in (*documents, *notes, message.content) if part)
+        entry: ChatMessage = {"role": message.role, "content": content}
+        if images:
+            entry["images"] = images
+        history.append(entry)
+    return history
+
+
+def _claim_attachments(
+    session: Session, user: User, attachment_ids: list[str], model: ModelInfo
+) -> list[Attachment]:
+    """Les fichiers en attente que l'utilisateur joint à son message, après vérifications."""
+    if not attachment_ids:
+        return []
+    found = session.exec(
+        select(Attachment).where(
+            col(Attachment.id).in_(attachment_ids),
+            Attachment.user_id == user.id,
+            col(Attachment.message_id).is_(None),
+        )
+    ).all()
+    if len(found) != len(set(attachment_ids)):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Pièce jointe introuvable ou déjà envoyée")
+    if not model.accepts_images and any(a.kind == "image" for a in found):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Ce modèle ne lit pas les images. Retirez-les ou choisissez un modèle qui les accepte.",
+        )
+    # Dans l'ordre où l'utilisateur les a joints, pas celui de la base.
+    by_id = {attachment.id: attachment for attachment in found}
+    return [by_id[attachment_id] for attachment_id in dict.fromkeys(attachment_ids)]
 
 
 @router.post("/chat")
 async def chat(body: ChatIn, user: CurrentUser, session: SessionDep) -> StreamingResponse:
     provider, key, model = await _resolve(session, user, body.provider, body.model)
+    attachments = _claim_attachments(session, user, body.attachment_ids, model)
 
     if body.conversation_id:
         conversation = get_owned_conversation(session, user.id, body.conversation_id)
         conversation.provider, conversation.model = provider.id, model.id
     else:
-        title = " ".join(body.content.split())[:_TITLE_LENGTH] or "Nouvelle conversation"
+        first_file = attachments[0].filename if attachments else "Nouvelle conversation"
+        title = (" ".join(body.content.split()) or first_file)[:_TITLE_LENGTH]
         conversation = Conversation(
             user_id=user.id, title=title, provider=provider.id, model=model.id
         )
@@ -179,15 +246,19 @@ async def chat(body: ChatIn, user: CurrentUser, session: SessionDep) -> Streamin
 
     user_message = Message(conversation_id=conversation.id, role="user", content=body.content)
     session.add(user_message)
+    session.flush()
+    for attachment in attachments:
+        attachment.message_id = user_message.id
+        session.add(attachment)
     session.commit()
     session.refresh(conversation)
     session.refresh(user_message)
 
     start = {
         "conversation": _dump(ConversationOut, conversation),
-        "user_message": _dump(MessageOut, user_message),
+        "user_message": _dump_message(session, user_message),
     }
-    history = _history(get_messages(session, conversation.id))
+    history = _history(session, get_messages(session, conversation.id), model)
     return _streaming_response(stream_reply(conversation.id, provider, key, model, history, start))
 
 
@@ -212,7 +283,9 @@ async def regenerate(
 
     start = {"conversation": _dump(ConversationOut, conversation), "user_message": None}
     return _streaming_response(
-        stream_reply(conversation_id, provider, key, model, _history(messages), start)
+        stream_reply(
+            conversation_id, provider, key, model, _history(session, messages, model), start
+        )
     )
 
 
@@ -251,8 +324,8 @@ async def edit_message(
     start = {
         "conversation": _dump(ConversationOut, conversation),
         "user_message": None,
-        "edited_message": _dump(MessageOut, edited),
+        "edited_message": _dump_message(session, edited),
     }
     return _streaming_response(
-        stream_reply(conversation_id, provider, key, model, _history(kept), start)
+        stream_reply(conversation_id, provider, key, model, _history(session, kept, model), start)
     )
