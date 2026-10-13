@@ -1,0 +1,10 @@
+{$DOMAIN} {
+	# Pas de compression sur l'API : les réponses du chat arrivent en flux continu.
+	@static not path /api/*
+	encode @static zstd gzip
+
+	reverse_proxy app:8642 {
+		# Transmet chaque morceau de réponse dès qu'il arrive.
+		flush_interval -1
+	}
+}
