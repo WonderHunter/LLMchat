@@ -9,6 +9,7 @@ os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["ALLOW_REGISTRATION"] = "true"
 os.environ["CATALOG_REFRESH_MINUTES"] = "0"
 os.environ.pop("OPENROUTER_SERVICE_KEY", None)
+os.environ.pop("DEMO_MODE", None)
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { keys, queryClient, useAuthConfig, useMe } from '../api/hooks'
 import type { User } from '../api/types'
+import { DemoBanner } from '../components/DemoBanner'
 import { Logo } from '../components/Logo'
 
 const MIN_PASSWORD = 8
@@ -40,8 +41,9 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   }
 
   return (
-    <main className="flex min-h-full items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    <main className="flex min-h-full flex-col">
+      <DemoBanner />
+      <div className="m-auto w-full max-w-sm p-4">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <Logo className="size-16" />
           <h1 className="font-serif text-3xl">

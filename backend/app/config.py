@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     openrouter_service_key: str | None = None
     catalog_refresh_minutes: int = 30
 
+    # Activé par scripts/demo_server.py : l'interface prévient que tout est simulé.
+    demo_mode: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:
