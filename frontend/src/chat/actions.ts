@@ -11,6 +11,12 @@ function withoutTrailingReplies(messages: Message[]): Message[] {
   return kept
 }
 
+/** Les messages qui précèdent celui-ci (tous, s'il est introuvable). */
+function upTo(messages: Message[], messageId: number): Message[] {
+  const index = messages.findIndex((message) => message.id === messageId)
+  return index === -1 ? messages : messages.slice(0, index)
+}
+
 function appendMessage(conversationId: string, message: Message) {
   queryClient.setQueryData<ConversationDetail>(keys.conversation(conversationId), (current) =>
     current ? { ...current, messages: [...current.messages, message] } : current,
@@ -42,13 +48,18 @@ async function run(
           started = true
           const conversation = data.conversation as Conversation
           const userMessage = data.user_message as Message | null
+          const edited = (data.edited_message ?? null) as Message | null
           currentId = conversation.id
           const known =
             queryClient.getQueryData<ConversationDetail>(keys.conversation(conversation.id))
               ?.messages ?? []
+          let messages: Message[]
+          if (userMessage) messages = [...known, userMessage]
+          else if (edited) messages = [...upTo(known, edited.id), edited]
+          else messages = withoutTrailingReplies(known)
           queryClient.setQueryData<ConversationDetail>(keys.conversation(conversation.id), {
             ...conversation,
-            messages: userMessage ? [...known, userMessage] : withoutTrailingReplies(known),
+            messages,
           })
           useChat.setState({ stream: { conversationId: conversation.id, question: null, text: '' } })
           void queryClient.invalidateQueries({ queryKey: keys.conversations })
@@ -124,6 +135,28 @@ export async function regenerate(conversationId: string, selection: Selection): 
   const started = await run(
     `/api/conversations/${conversationId}/regenerate`,
     selection,
+    conversationId,
+    null,
+  )
+  if (!started) void queryClient.invalidateQueries({ queryKey: key })
+}
+
+/** Réécrit une question : tout ce qui la suivait est remplacé par une nouvelle réponse. */
+export async function editMessage(
+  conversationId: string,
+  messageId: number,
+  content: string,
+  selection: Selection,
+): Promise<void> {
+  const key = keys.conversation(conversationId)
+  queryClient.setQueryData<ConversationDetail>(key, (current) => {
+    const original = current?.messages.find((message) => message.id === messageId)
+    if (!current || !original) return current
+    return { ...current, messages: [...upTo(current.messages, messageId), { ...original, content }] }
+  })
+  const started = await run(
+    `/api/conversations/${conversationId}/messages/${messageId}/edit`,
+    { content, ...selection },
     conversationId,
     null,
   )

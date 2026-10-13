@@ -2,7 +2,7 @@ import { KeyRound, PanelLeftOpen } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useConversation, useMe } from '../api/hooks'
-import { regenerate, sendMessage, stopStreaming } from '../chat/actions'
+import { editMessage, regenerate, sendMessage, stopStreaming } from '../chat/actions'
 import { useChat } from '../chat/store'
 import { useSelection } from '../chat/useSelection'
 import { ArtifactPanel } from '../components/ArtifactPanel'
@@ -171,6 +171,11 @@ export function ChatPage() {
                 error={visibleError}
                 onRegenerate={
                   id && selection && stream === null ? () => void regenerate(id, selection) : undefined
+                }
+                onEdit={
+                  id && selection && stream === null
+                    ? (messageId, text) => void editMessage(id, messageId, text, selection)
+                    : undefined
                 }
               />
             </div>
