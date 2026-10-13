@@ -19,6 +19,7 @@ from app.db import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.providers.base import InvalidKey, ModelInfo, Provider  # noqa: E402
 from app.providers.registry import PROVIDERS  # noqa: E402
+from app.ratelimit import ALL_LIMITERS  # noqa: E402
 from app.services.catalog import catalog  # noqa: E402
 
 PASSWORD = "correct-horse-battery"
@@ -88,6 +89,8 @@ def reset_database() -> None:
 def client():
     reset_database()
     catalog.clear()
+    for limiter in ALL_LIMITERS:
+        limiter.clear()
     with TestClient(app) as test_client:
         yield test_client
 
