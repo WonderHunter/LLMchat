@@ -3,7 +3,7 @@
 Webapp de chat multi-utilisateurs. Chaque utilisateur apporte sa propre clé API (BYOK) pour
 OpenRouter, OpenAI ou Anthropic, et discute avec les modèles auxquels sa clé donne accès.
 
-- **Backend** : Python 3.12, FastAPI, SQLite (SQLModel).
+- **Backend** : Python 3.13, FastAPI, SQLite (SQLModel).
 - **Frontend** : React, Vite, Tailwind.
 
 ## Fonctionnalités
@@ -18,10 +18,13 @@ OpenRouter, OpenAI ou Anthropic, et discute avec les modèles auxquels sa clé d
 - Panneau latéral pour le code long, avec aperçu des pages HTML et images SVG générées
   (dans une `iframe` isolée).
 - Thème clair et sombre, affichage mobile.
+- Compte : changement de mot de passe (qui déconnecte les autres appareils) et suppression
+  du compte avec toutes ses données.
+- Protection de la connexion : nombre de tentatives limité par adresse et par compte.
 
 ## Prérequis
 
-- [uv](https://docs.astral.sh/uv/) (installe Python 3.12 si besoin)
+- [uv](https://docs.astral.sh/uv/) (installe Python 3.13 si besoin)
 - Node.js 22 et [pnpm](https://pnpm.io/)
 
 ## Installation
@@ -68,7 +71,30 @@ uv run python scripts/demo_server.py
 
 Le compte de démonstration est affiché au démarrage (et défini en tête du script).
 
-## Lancer en production
+## Déployer avec Docker
+
+Il faut un serveur joignable sur les ports 80 et 443, et un nom de domaine qui pointe dessus.
+
+1. Créer `.env` à la racine (voir [.env.example](.env.example)) avec `SECRET_KEY`,
+   `FERNET_KEY` et `DOMAIN` (par exemple `chat.exemple.fr`).
+2. Lancer :
+
+```bash
+docker compose up -d --build
+```
+
+[Caddy](https://caddyserver.com/) obtient et renouvelle le certificat HTTPS tout seul, et
+relaie les requêtes vers l'application, qui n'est pas exposée directement.
+
+À savoir :
+
+- La base SQLite est dans le volume `llmchat-data`. C'est lui qu'il faut sauvegarder, avec
+  `FERNET_KEY` : sans cette clé, les clés API enregistrées sont illisibles.
+- Les migrations de base s'appliquent toutes seules au démarrage.
+- L'application tourne en un seul processus : la limitation des tentatives de connexion est
+  tenue en mémoire, et SQLite n'accepte qu'un écrivain. Ne pas lancer plusieurs instances.
+
+### Sans Docker
 
 ```bash
 cd frontend
@@ -77,11 +103,13 @@ pnpm build
 
 ```bash
 cd backend
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8642
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8642 --proxy-headers
 ```
 
-Le backend sert alors l'interface compilée (`frontend/dist`) et l'API sur le même port.
-Derrière HTTPS, mettre `COOKIE_SECURE=true` dans `.env`.
+Le backend sert alors l'interface compilée (`frontend/dist`) et l'API sur le même port. Le
+placer derrière un reverse proxy HTTPS et mettre `COOKIE_SECURE=true` dans `.env`.
+`--proxy-headers` fait confiance à l'adresse du visiteur transmise par le proxy local, dont
+dépend la limitation des tentatives de connexion.
 
 ## Variables d'environnement
 
@@ -94,6 +122,18 @@ Derrière HTTPS, mettre `COOKIE_SECURE=true` dans `.env`.
 | `OPENROUTER_SERVICE_KEY` | Optionnelle. Envoyée uniquement pour lire le catalogue OpenRouter, jamais pour le chat. Le catalogue étant public, elle peut rester vide. |
 | `CATALOG_REFRESH_MINUTES` | Fréquence de rafraîchissement du catalogue OpenRouter (30 par défaut). |
 | `DATABASE_URL` | Par défaut `backend/llmchat.db`. |
+| `DOMAIN` | Nom de domaine servi par Caddy. Utilisé uniquement par `compose.yaml`. |
+
+## Faire évoluer la base
+
+Après avoir modifié un modèle dans `backend/app/models.py`, générer la migration puis la relire :
+
+```bash
+cd backend
+uv run alembic revision --autogenerate -m "description du changement"
+```
+
+Un test vérifie que les migrations et les modèles décrivent le même schéma.
 
 ## Tests
 

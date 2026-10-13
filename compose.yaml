@@ -1,0 +1,44 @@
+# Déploiement : l'application derrière Caddy, qui obtient et renouvelle le certificat HTTPS.
+#
+#   docker compose up -d --build
+#
+# Les variables viennent du fichier .env à la racine (voir .env.example).
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Définir SECRET_KEY dans .env}
+      FERNET_KEY: ${FERNET_KEY:?Définir FERNET_KEY dans .env}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      OPENROUTER_SERVICE_KEY: ${OPENROUTER_SERVICE_KEY:-}
+      CATALOG_REFRESH_MINUTES: ${CATALOG_REFRESH_MINUTES:-30}
+      # Toujours servi en HTTPS ici : le cookie de session n'est envoyé que sur connexion chiffrée.
+      COOKIE_SECURE: "true"
+    volumes:
+      - llmchat-data:/data
+    # Joignable par Caddy uniquement, pas depuis l'extérieur.
+    expose:
+      - "8642"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Définir DOMAIN dans .env, par exemple chat.exemple.fr}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  llmchat-data:
+  caddy-data:
+  caddy-config:
