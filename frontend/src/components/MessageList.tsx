@@ -1,14 +1,105 @@
-import { RefreshCw } from 'lucide-react'
-import { memo } from 'react'
+import { Pencil, RefreshCw } from 'lucide-react'
+import { memo, useState, type FormEvent, type KeyboardEvent } from 'react'
 import type { Message } from '../api/types'
 import { CopyButton } from './CopyButton'
 import { Markdown } from './Markdown'
 
-function UserBubble({ text }: { text: string }) {
+const actionButton = 'rounded-md p-1.5 transition-colors hover:bg-hover hover:text-text'
+
+function EditForm({
+  initial,
+  onCancel,
+  onSubmit,
+}: {
+  initial: string
+  onCancel: () => void
+  onSubmit: (text: string) => void
+}) {
+  const [draft, setDraft] = useState(initial)
+  const text = draft.trim()
+
+  function submit(event?: FormEvent) {
+    event?.preventDefault()
+    if (text) onSubmit(text)
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Escape') onCancel()
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault()
+      submit()
+    }
+  }
+
   return (
-    <div className="flex justify-end">
+    <form onSubmit={submit} className="rounded-3xl border border-accent bg-surface p-3">
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={onKeyDown}
+        rows={Math.min(10, draft.split('\n').length + 1)}
+        aria-label="Modifier le message"
+        className="block w-full resize-none bg-transparent px-2 py-1 text-[15px] leading-relaxed outline-none"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <span className="flex-1 px-2 text-xs text-muted">
+          La suite de la conversation sera remplacée.
+        </span>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-full px-3 py-1.5 text-sm hover:bg-hover"
+        >
+          Annuler
+        </button>
+        <button
+          type="submit"
+          disabled={!text || text === initial.trim()}
+          className="rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-40"
+        >
+          Envoyer
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function UserBubble({ text, onEdit }: { text: string; onEdit?: (text: string) => void }) {
+  const [editing, setEditing] = useState(false)
+
+  if (editing && onEdit) {
+    return (
+      <EditForm
+        initial={text}
+        onCancel={() => setEditing(false)}
+        onSubmit={(next) => {
+          setEditing(false)
+          onEdit(next)
+        }}
+      />
+    )
+  }
+
+  return (
+    <div className="group flex flex-col items-end gap-0.5">
       <div className="max-w-[85%] rounded-3xl bg-hover px-5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap">
         {text}
+      </div>
+      {/* Visibles au survol ; toujours visibles au toucher, où le survol n'existe pas. */}
+      <div className="flex text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100">
+        <CopyButton text={text} label="Copier le message" />
+        {onEdit && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            title="Modifier le message"
+            aria-label="Modifier le message"
+            className={actionButton}
+          >
+            <Pencil className="size-4" />
+          </button>
+        )}
       </div>
     </div>
   )
@@ -40,11 +131,20 @@ function Usage({ message }: { message: Message }) {
 const MessageView = memo(function MessageView({
   message,
   onRegenerate,
+  onEdit,
 }: {
   message: Message
   onRegenerate?: () => void
+  onEdit?: (messageId: number, text: string) => void
 }) {
-  if (message.role === 'user') return <UserBubble text={message.content} />
+  if (message.role === 'user') {
+    return (
+      <UserBubble
+        text={message.content}
+        onEdit={onEdit && ((text) => onEdit(message.id, text))}
+      />
+    )
+  }
   return (
     <div>
       <Markdown text={message.content} />
@@ -90,6 +190,7 @@ interface MessageListProps {
   streamingText: string | null
   error: string | null
   onRegenerate?: () => void
+  onEdit?: (messageId: number, text: string) => void
 }
 
 export function MessageList({
@@ -98,6 +199,7 @@ export function MessageList({
   streamingText,
   error,
   onRegenerate,
+  onEdit,
 }: MessageListProps) {
   const idle = streamingText === null
   const last = messages[messages.length - 1]
@@ -111,6 +213,8 @@ export function MessageList({
           onRegenerate={
             idle && message === last && message.role === 'assistant' ? onRegenerate : undefined
           }
+          // Les messages provisoires (identifiant négatif) n'existent pas encore côté serveur.
+          onEdit={idle && message.id > 0 ? onEdit : undefined}
         />
       ))}
       {pendingQuestion && <UserBubble text={pendingQuestion} />}

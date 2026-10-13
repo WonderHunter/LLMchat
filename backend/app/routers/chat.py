@@ -37,6 +37,12 @@ class RegenerateIn(BaseModel):
     model: str | None = None
 
 
+class EditIn(BaseModel):
+    content: str = Field(min_length=1, max_length=400_000)
+    provider: str | None = None
+    model: str | None = None
+
+
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -207,4 +213,46 @@ async def regenerate(
     start = {"conversation": _dump(ConversationOut, conversation), "user_message": None}
     return _streaming_response(
         stream_reply(conversation_id, provider, key, model, _history(messages), start)
+    )
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/edit")
+async def edit_message(
+    conversation_id: str,
+    message_id: int,
+    body: EditIn,
+    user: CurrentUser,
+    session: SessionDep,
+) -> StreamingResponse:
+    """Réécrit une question, efface tout ce qui la suivait et génère une nouvelle réponse."""
+    conversation = get_owned_conversation(session, user.id, conversation_id)
+    messages = get_messages(session, conversation_id)
+    edited = next((m for m in messages if m.id == message_id), None)
+    if edited is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Message introuvable")
+    if edited.role != "user":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Seules vos questions sont modifiables")
+    provider, key, model = await _resolve(
+        session, user, body.provider or conversation.provider, body.model or conversation.model
+    )
+
+    kept = [m for m in messages if m.id <= message_id]
+    for message in messages[len(kept) :]:
+        session.delete(message)
+    edited.content = body.content
+    conversation.provider, conversation.model = provider.id, model.id
+    conversation.updated_at = utcnow()
+    session.add(edited)
+    session.add(conversation)
+    session.commit()
+    session.refresh(conversation)
+    session.refresh(edited)
+
+    start = {
+        "conversation": _dump(ConversationOut, conversation),
+        "user_message": None,
+        "edited_message": _dump(MessageOut, edited),
+    }
+    return _streaming_response(
+        stream_reply(conversation_id, provider, key, model, _history(kept), start)
     )
