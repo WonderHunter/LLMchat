@@ -1,6 +1,6 @@
-import { Pencil, RefreshCw } from 'lucide-react'
+import { FileText, Pencil, RefreshCw } from 'lucide-react'
 import { memo, useState, type FormEvent, type KeyboardEvent } from 'react'
-import type { Message } from '../api/types'
+import type { Attachment, Message } from '../api/types'
 import { CopyButton } from './CopyButton'
 import { Markdown } from './Markdown'
 
@@ -65,7 +65,42 @@ function EditForm({
   )
 }
 
-function UserBubble({ text, onEdit }: { text: string; onEdit?: (text: string) => void }) {
+function Attachments({ items }: { items: Attachment[] }) {
+  if (items.length === 0) return null
+  return (
+    <ul className="flex max-w-[85%] flex-wrap justify-end gap-2" aria-label="Pièces jointes">
+      {items.map((item) => (
+        <li key={item.id}>
+          {item.kind === 'image' ? (
+            <a href={`/api/attachments/${item.id}`} target="_blank" rel="noreferrer">
+              <img
+                src={`/api/attachments/${item.id}`}
+                alt={item.filename}
+                loading="lazy"
+                className="max-h-56 max-w-full rounded-2xl border border-border object-contain"
+              />
+            </a>
+          ) : (
+            <span className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm">
+              <FileText className="size-4 shrink-0 text-accent" />
+              <span className="max-w-56 truncate">{item.filename}</span>
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function UserBubble({
+  text,
+  attachments,
+  onEdit,
+}: {
+  text: string
+  attachments: Attachment[]
+  onEdit?: (text: string) => void
+}) {
   const [editing, setEditing] = useState(false)
 
   if (editing && onEdit) {
@@ -82,10 +117,13 @@ function UserBubble({ text, onEdit }: { text: string; onEdit?: (text: string) =>
   }
 
   return (
-    <div className="group flex flex-col items-end gap-0.5">
-      <div className="max-w-[85%] rounded-3xl bg-hover px-5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap">
-        {text}
-      </div>
+    <div className="group flex flex-col items-end gap-1.5">
+      <Attachments items={attachments} />
+      {text && (
+        <div className="max-w-[85%] rounded-3xl bg-hover px-5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap">
+          {text}
+        </div>
+      )}
       {/* Visibles au survol ; toujours visibles au toucher, où le survol n'existe pas. */}
       <div className="flex text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100">
         <CopyButton text={text} label="Copier le message" />
@@ -141,6 +179,7 @@ const MessageView = memo(function MessageView({
     return (
       <UserBubble
         text={message.content}
+        attachments={message.attachments}
         onEdit={onEdit && ((text) => onEdit(message.id, text))}
       />
     )
@@ -185,7 +224,7 @@ function Thinking() {
 interface MessageListProps {
   messages: Message[]
   /** Question envoyée mais pas encore enregistrée par le serveur. */
-  pendingQuestion: string | null
+  pendingQuestion: { text: string; attachments: Attachment[] } | null
   /** Texte de la réponse en cours ; null s'il n'y a pas de génération. */
   streamingText: string | null
   error: string | null
@@ -217,7 +256,9 @@ export function MessageList({
           onEdit={idle && message.id > 0 ? onEdit : undefined}
         />
       ))}
-      {pendingQuestion && <UserBubble text={pendingQuestion} />}
+      {pendingQuestion && (
+        <UserBubble text={pendingQuestion.text} attachments={pendingQuestion.attachments} />
+      )}
       {streamingText !== null &&
         (streamingText ? <Markdown text={streamingText} /> : <Thinking />)}
       {error && (

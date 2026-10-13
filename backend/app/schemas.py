@@ -12,6 +12,14 @@ def _as_utc(value: datetime) -> str:
 UtcDatetime = Annotated[datetime, PlainSerializer(_as_utc, return_type=str)]
 
 
+class AttachmentOut(BaseModel):
+    id: str
+    kind: str
+    filename: str
+    media_type: str
+    size: int
+
+
 class MessageOut(BaseModel):
     id: int
     role: str
@@ -22,6 +30,7 @@ class MessageOut(BaseModel):
     output_tokens: int | None
     cost: float | None
     created_at: UtcDatetime
+    attachments: list[AttachmentOut] = []
 
 
 class ConversationOut(BaseModel):

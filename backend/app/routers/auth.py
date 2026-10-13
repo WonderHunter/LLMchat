@@ -4,7 +4,7 @@ from sqlmodel import col, delete, select
 
 from app.config import get_settings
 from app.deps import CurrentUser, SessionDep
-from app.models import Conversation, Message, ProviderKey, User
+from app.models import Attachment, Conversation, Message, ProviderKey, User
 from app.providers.registry import PROVIDERS
 from app.ratelimit import (
     login_failures_by_email,
@@ -145,6 +145,7 @@ def delete_account(
     session.exec(delete(Message).where(col(Message.conversation_id).in_(conversation_ids)))
     session.exec(delete(Conversation).where(col(Conversation.user_id) == user.id))
     session.exec(delete(ProviderKey).where(col(ProviderKey.user_id) == user.id))
+    session.exec(delete(Attachment).where(col(Attachment.user_id) == user.id))
     for provider_id in PROVIDERS:
         catalog.forget_user(user.id, provider_id)
     session.delete(user)

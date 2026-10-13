@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 
 from app.config import ROOT_DIR, get_settings
 from app.db import init_db
-from app.routers import auth, chat, conversations, keys, models
+from app.routers import attachments, auth, chat, conversations, keys, models
 from app.services.catalog import catalog
 
 FRONTEND_DIST = (ROOT_DIR / "frontend" / "dist").resolve()
@@ -27,7 +27,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="LLMchat", lifespan=lifespan)
-for module in (auth, keys, models, conversations, chat):
+for module in (auth, keys, models, conversations, attachments, chat):
     app.include_router(module.router)
 
 SECURITY_HEADERS = {

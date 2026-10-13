@@ -1,6 +1,12 @@
 import { streamSSE } from '../api/client'
 import { keys, queryClient } from '../api/hooks'
-import type { Conversation, ConversationDetail, Message, Selection } from '../api/types'
+import type {
+  Attachment,
+  Conversation,
+  ConversationDetail,
+  Message,
+  Selection,
+} from '../api/types'
 import { useChat } from './store'
 
 let controller: AbortController | null = null
@@ -31,11 +37,19 @@ async function run(
   path: string,
   body: unknown,
   conversationId: string | null,
-  question: string | null,
+  question: { text: string; attachments: Attachment[] } | null,
   onCreated?: (id: string) => void,
 ): Promise<boolean> {
   controller = new AbortController()
-  useChat.setState({ stream: { conversationId, question, text: '' }, error: null })
+  useChat.setState({
+    stream: {
+      conversationId,
+      question: question?.text ?? null,
+      attachments: question?.attachments ?? [],
+      text: '',
+    },
+    error: null,
+  })
   let currentId = conversationId
   let started = false
 
@@ -61,7 +75,9 @@ async function run(
             ...conversation,
             messages,
           })
-          useChat.setState({ stream: { conversationId: conversation.id, question: null, text: '' } })
+          useChat.setState({
+            stream: { conversationId: conversation.id, question: null, attachments: [], text: '' },
+          })
           void queryClient.invalidateQueries({ queryKey: keys.conversations })
           if (!conversationId) onCreated?.(conversation.id)
         } else if (event === 'delta') {
@@ -96,6 +112,7 @@ async function run(
           output_tokens: null,
           cost: null,
           created_at: new Date().toISOString(),
+          attachments: [],
         })
       }
       const stoppedId = currentId
@@ -119,11 +136,17 @@ async function run(
 export function sendMessage(
   conversationId: string | null,
   content: string,
+  attachments: Attachment[],
   selection: Selection,
   onCreated: (id: string) => void,
 ): Promise<boolean> {
-  const body = { conversation_id: conversationId, content, ...selection }
-  return run('/api/chat', body, conversationId, content, onCreated)
+  const body = {
+    conversation_id: conversationId,
+    content,
+    attachment_ids: attachments.map((attachment) => attachment.id),
+    ...selection,
+  }
+  return run('/api/chat', body, conversationId, { text: content, attachments }, onCreated)
 }
 
 export async function regenerate(conversationId: string, selection: Selection): Promise<void> {

@@ -316,6 +316,7 @@ async def test_anthropic_lists_models_with_their_limits():
         ModelInfo(
             id="claude-opus-5-5",
             name="Claude Opus 5.5",
+            accepts_images=True,
             context_length=1000000,
             max_output_tokens=128000,
         )

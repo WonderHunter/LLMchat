@@ -17,6 +17,8 @@ export interface ModelInfo {
   id: string
   name: string
   free: boolean
+  /** Le modèle sait-il lire les images jointes ? */
+  accepts_images: boolean
   context_length: number | null
   /** Dollars par million de tokens. */
   input_price: number | null
@@ -39,6 +41,15 @@ export interface Conversation {
   updated_at: string
 }
 
+export interface Attachment {
+  id: string
+  /** « image » : envoyée telle quelle au modèle ; « text » : document dont le texte est inséré. */
+  kind: 'image' | 'text'
+  filename: string
+  media_type: string
+  size: number
+}
+
 export interface Message {
   id: number
   role: 'user' | 'assistant'
@@ -51,6 +62,7 @@ export interface Message {
   /** En dollars ; null quand aucun prix n'est connu pour ce modèle. */
   cost: number | null
   created_at: string
+  attachments: Attachment[]
 }
 
 export interface ConversationDetail extends Conversation {
