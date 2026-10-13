@@ -34,7 +34,8 @@ class FakeProvider(Provider):
         self.label = provider_id.capitalize()
         self.models = models
         self.chunks = ["Bon", "jour", " !"]
-        self.error: Exception | None = None
+        self.error: Exception | None = None  # échec de list_models
+        self.chat_error: Exception | None = None  # échec pendant stream_chat
         self.list_calls = 0
         self.chat_calls: list[dict] = []
 
@@ -52,8 +53,8 @@ class FakeProvider(Provider):
         self.chat_calls.append({"key": key, "model": model, "messages": messages})
         for chunk in self.chunks:
             yield chunk
-        if self.error:
-            raise self.error
+        if self.chat_error:
+            raise self.chat_error
 
 
 @pytest.fixture
