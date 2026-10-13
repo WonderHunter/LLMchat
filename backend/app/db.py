@@ -1,8 +1,11 @@
 from collections.abc import Iterator
+from pathlib import Path
 
-from sqlalchemy import event
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import event, inspect
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, create_engine
 
 from app.config import get_settings
 
@@ -27,10 +30,21 @@ def _make_engine():
 engine = _make_engine()
 
 
-def init_db() -> None:
-    from app import models  # noqa: F401  (enregistre les tables)
+# Schéma des bases créées avant l'arrivée des migrations.
+_FIRST_REVISION = "0001"
 
-    SQLModel.metadata.create_all(engine)
+
+def init_db() -> None:
+    """Amène la base au schéma courant en appliquant les migrations manquantes."""
+    config = Config()
+    config.set_main_option("script_location", str(Path(__file__).parent / "migrations"))
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        tables = inspect(connection).get_table_names()
+        if "user" in tables and "alembic_version" not in tables:
+            # Base d'avant les migrations : elle a déjà le schéma initial, on le note seulement.
+            command.stamp(config, _FIRST_REVISION)
+        command.upgrade(config, "head")
 
 
 def get_session() -> Iterator[Session]:
