@@ -6,6 +6,9 @@ OpenRouter, OpenAI ou Anthropic, et discute avec les modèles auxquels sa clé d
 - **Backend** : Python 3.13, FastAPI, SQLite (SQLModel).
 - **Frontend** : React, Vite, Tailwind.
 
+Pour comprendre le projet en profondeur (architecture, choix techniques, trajet d'un
+message), lire [docs/PROJET.md](docs/PROJET.md).
+
 ## Fonctionnalités
 
 - Comptes par e-mail et mot de passe, session par cookie `HttpOnly`.
@@ -15,6 +18,10 @@ OpenRouter, OpenAI ou Anthropic, et discute avec les modèles auxquels sa clé d
   autoriser les modèles payants dans ses réglages. Le serveur applique ce réglage.
 - Réponses en streaming, arrêt en cours de route (la réponse partielle est conservée),
   régénération, historique des conversations.
+- Modification d'une question déjà envoyée : la suite de la conversation est remplacée.
+- Pièces jointes : images (pour les modèles qui les lisent, signalés dans le sélecteur), PDF
+  et fichiers texte.
+- Tokens consommés et coût affichés sous chaque réponse, quand le fournisseur les communique.
 - Panneau latéral pour le code long, avec aperçu des pages HTML et images SVG générées
   (dans une `iframe` isolée).
 - Thème clair et sombre, affichage mobile.
