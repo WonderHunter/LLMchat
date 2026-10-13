@@ -100,6 +100,20 @@ export function useSetFreeOnly() {
   })
 }
 
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (body: { current_password: string; new_password: string }) =>
+      api<void>('/api/auth/password', { method: 'POST', body }),
+  })
+}
+
+export function useDeleteAccount() {
+  return useMutation({
+    mutationFn: (password: string) =>
+      api<void>('/api/auth/delete-account', { method: 'POST', body: { password } }),
+  })
+}
+
 export function useRenameConversation() {
   return useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) =>

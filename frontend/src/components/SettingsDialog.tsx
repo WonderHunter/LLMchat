@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useDeleteKey, useProviderKeys, useSaveKey, useSetFreeOnly } from '../api/hooks'
 import type { KeyStatus } from '../api/types'
 import { useChat } from '../chat/store'
+import { AccountSettings } from './AccountSettings'
 
 function ProviderRow({ status }: { status: KeyStatus }) {
   const [key, setKey] = useState('')
@@ -125,6 +126,8 @@ export function SettingsDialog() {
   const setOpen = useChat((state) => state.setSettingsOpen)
   const { data: statuses } = useProviderKeys()
 
+  const [tab, setTab] = useState<'keys' | 'account'>('keys')
+
   useEffect(() => {
     if (!open) return
     function onKeyDown(event: KeyboardEvent) {
@@ -149,7 +152,7 @@ export function SettingsDialog() {
       >
         <header className="flex items-center justify-between px-6 pt-5 pb-3">
           <h2 id="settings-title" className="font-serif text-2xl">
-            Clés API
+            Réglages
           </h2>
           <button
             type="button"
@@ -160,14 +163,34 @@ export function SettingsDialog() {
             <X className="size-5" />
           </button>
         </header>
-        <div className="flex flex-col gap-3 overflow-y-auto px-6 pb-6">
-          <p className="text-sm text-muted">
-            Ajoutez la clé d'au moins un fournisseur. Chaque clé est vérifiée, chiffrée sur le
-            serveur, et n'est plus jamais affichée ensuite.
-          </p>
-          {statuses?.map((status) => (
-            <ProviderRow key={status.provider} status={status} />
+        <div className="mx-6 mb-4 flex self-start rounded-lg bg-hover p-0.5" role="tablist">
+          {(['keys', 'account'] as const).map((name) => (
+            <button
+              key={name}
+              type="button"
+              role="tab"
+              aria-selected={tab === name}
+              onClick={() => setTab(name)}
+              className={`rounded-md px-3 py-1 text-sm ${tab === name ? 'bg-surface font-medium shadow-sm' : 'text-muted hover:text-text'}`}
+            >
+              {name === 'keys' ? 'Clés API' : 'Compte'}
+            </button>
           ))}
+        </div>
+        <div className="flex flex-col gap-3 overflow-y-auto px-6 pb-6">
+          {tab === 'keys' ? (
+            <>
+              <p className="text-sm text-muted">
+                Ajoutez la clé d'au moins un fournisseur. Chaque clé est vérifiée, chiffrée sur le
+                serveur, et n'est plus jamais affichée ensuite.
+              </p>
+              {statuses?.map((status) => (
+                <ProviderRow key={status.provider} status={status} />
+              ))}
+            </>
+          ) : (
+            <AccountSettings />
+          )}
         </div>
       </div>
     </div>

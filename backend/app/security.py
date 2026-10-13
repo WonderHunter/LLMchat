@@ -22,16 +22,18 @@ def verify_password(password: str, password_hash: str | None) -> bool:
     return _password_hash.verify(password, password_hash or _DUMMY_HASH) and bool(password_hash)
 
 
-def create_session_token(user_id: int) -> str:
+def create_session_token(user_id: int, version: int) -> str:
     settings = get_settings()
     expires = datetime.now(UTC) + timedelta(days=settings.session_days)
-    return jwt.encode({"sub": str(user_id), "exp": expires}, settings.secret_key, _ALGORITHM)
+    payload = {"sub": str(user_id), "ver": version, "exp": expires}
+    return jwt.encode(payload, settings.secret_key, _ALGORITHM)
 
 
-def read_session_token(token: str) -> int | None:
+def read_session_token(token: str) -> tuple[int, int] | None:
+    """Identifiant de l'utilisateur et version de session portés par le jeton."""
     try:
         payload = jwt.decode(token, get_settings().secret_key, algorithms=[_ALGORITHM])
-        return int(payload["sub"])
+        return int(payload["sub"]), int(payload.get("ver", 0))
     except (jwt.PyJWTError, KeyError, ValueError):
         return None
 

@@ -17,6 +17,8 @@ class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     email: str = Field(unique=True, index=True)
     password_hash: str
+    # Incrémenté au changement de mot de passe : les sessions ouvertes avant ne valent plus.
+    token_version: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     created_at: datetime = Field(default_factory=utcnow)
 
 

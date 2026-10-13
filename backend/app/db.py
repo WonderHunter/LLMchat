@@ -34,8 +34,8 @@ engine = _make_engine()
 _FIRST_REVISION = "0001"
 
 
-def init_db() -> None:
-    """Amène la base au schéma courant en appliquant les migrations manquantes."""
+def init_db(revision: str = "head") -> None:
+    """Amène la base au schéma voulu (le plus récent par défaut) en appliquant les migrations."""
     config = Config()
     config.set_main_option("script_location", str(Path(__file__).parent / "migrations"))
     with engine.begin() as connection:
@@ -44,7 +44,7 @@ def init_db() -> None:
         if "user" in tables and "alembic_version" not in tables:
             # Base d'avant les migrations : elle a déjà le schéma initial, on le note seulement.
             command.stamp(config, _FIRST_REVISION)
-        command.upgrade(config, "head")
+        command.upgrade(config, revision)
 
 
 def get_session() -> Iterator[Session]:
