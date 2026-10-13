@@ -37,7 +37,13 @@ from sqlmodel import Session  # noqa: E402
 from app.db import engine, init_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import ProviderKey, User  # noqa: E402
-from app.providers.base import InvalidKey, ModelInfo, Provider, QuotaExceeded  # noqa: E402
+from app.providers.base import (  # noqa: E402
+    InvalidKey,
+    ModelInfo,
+    Provider,
+    QuotaExceeded,
+    Usage,
+)
 from app.providers.registry import PROVIDERS  # noqa: E402
 from app.security import encrypt_secret, hash_password  # noqa: E402
 
@@ -122,6 +128,11 @@ class DemoProvider(Provider):
                 raise QuotaExceeded(self.label)
             yield piece if index == len(pieces) - 1 else piece + " "
             await asyncio.sleep(0.025)
+        # Décompte approximatif, pour montrer l'affichage des tokens et du coût.
+        yield Usage(
+            input_tokens=sum(len(m["content"]) for m in messages) // 4,
+            output_tokens=len(reply) // 4,
+        )
 
 
 DEMO_PROVIDERS = [

@@ -15,6 +15,7 @@ from app.providers.base import (
     ProviderError,
     ProviderUnavailable,
     QuotaExceeded,
+    Usage,
 )
 
 
@@ -24,6 +25,8 @@ class OpenAICompatProvider(Provider):
     base_url: str | None = None
     default_headers: dict[str, str] | None = None
     max_retries = 1
+    # Champs ajoutés au corps de la requête de chat, propres à un fournisseur.
+    extra_body: dict | None = None
     # Transport httpx2 injecté par les tests ; None en fonctionnement normal.
     transport = None
 
@@ -56,17 +59,32 @@ class OpenAICompatProvider(Provider):
 
     async def stream_chat(
         self, key: str, model: ModelInfo, messages: list[ChatMessage]
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[str | Usage]:
+        usage = None
         try:
             async with self._client(key) as client:
                 stream = await client.chat.completions.create(
-                    model=model.id, messages=messages, stream=True
+                    model=model.id,
+                    messages=messages,
+                    stream=True,
+                    # Demande le décompte des tokens, envoyé dans le dernier morceau.
+                    stream_options={"include_usage": True},
+                    extra_body=self.extra_body,
                 )
                 async for chunk in stream:
                     if chunk.choices and (text := chunk.choices[0].delta.content):
                         yield text
+                    if chunk.usage:
+                        usage = Usage(
+                            input_tokens=chunk.usage.prompt_tokens,
+                            output_tokens=chunk.usage.completion_tokens,
+                            # Champ propre à OpenRouter, absent chez OpenAI.
+                            cost=getattr(chunk.usage, "cost", None),
+                        )
         except openai.OpenAIError as exc:
             raise self._translate(exc) from exc
+        if usage:
+            yield usage
 
 
 class OpenAIProvider(OpenAICompatProvider):
@@ -115,6 +133,8 @@ class OpenRouterProvider(OpenAICompatProvider):
     keys_url = "https://openrouter.ai/settings/keys"
     base_url = "https://openrouter.ai/api/v1"
     default_headers = {"X-Title": "LLMchat"}
+    # Fait figurer le coût réel de la réponse dans le décompte renvoyé.
+    extra_body = {"usage": {"include": True}}
 
     async def _get(self, path: str, key: str | None) -> httpx.Response:
         headers = {"Authorization": f"Bearer {key}"} if key else {}

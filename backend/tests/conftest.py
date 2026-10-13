@@ -17,7 +17,7 @@ from sqlmodel import SQLModel  # noqa: E402
 
 from app.db import engine  # noqa: E402
 from app.main import app  # noqa: E402
-from app.providers.base import InvalidKey, ModelInfo, Provider  # noqa: E402
+from app.providers.base import InvalidKey, ModelInfo, Provider, Usage  # noqa: E402
 from app.providers.registry import PROVIDERS  # noqa: E402
 from app.ratelimit import ALL_LIMITERS  # noqa: E402
 from app.services.catalog import catalog  # noqa: E402
@@ -36,6 +36,7 @@ class FakeProvider(Provider):
         self.label = provider_id.capitalize()
         self.models = models
         self.chunks = ["Bon", "jour", " !"]
+        self.usage: Usage | None = Usage(input_tokens=12, output_tokens=34)
         self.error: Exception | None = None  # échec de list_models
         self.chat_error: Exception | None = None  # échec pendant stream_chat
         self.list_calls = 0
@@ -57,6 +58,8 @@ class FakeProvider(Provider):
             yield chunk
         if self.chat_error:
             raise self.chat_error
+        if self.usage:
+            yield self.usage
 
 
 @pytest.fixture

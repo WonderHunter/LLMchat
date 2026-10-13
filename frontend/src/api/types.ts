@@ -45,6 +45,11 @@ export interface Message {
   content: string
   provider: string | null
   model: string | null
+  /** Consommation des réponses ; null si le fournisseur ne l'a pas communiquée. */
+  input_tokens: number | null
+  output_tokens: number | null
+  /** En dollars ; null quand aucun prix n'est connu pour ce modèle. */
+  cost: number | null
   created_at: string
 }
 

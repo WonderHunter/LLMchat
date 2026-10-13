@@ -18,6 +18,9 @@ class MessageOut(BaseModel):
     content: str
     provider: str | None
     model: str | None
+    input_tokens: int | None
+    output_tokens: int | None
+    cost: float | None
     created_at: UtcDatetime
 
 
