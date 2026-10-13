@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useMe } from './api/hooks'
+import { isDark, useChat } from './chat/store'
 import { AuthPage } from './pages/AuthPage'
 import { ChatPage } from './pages/ChatPage'
 
@@ -17,6 +19,17 @@ function Protected() {
 }
 
 export default function App() {
+  const theme = useChat((state) => state.theme)
+
+  useEffect(() => {
+    const apply = () => document.documentElement.classList.toggle('dark', isDark(theme))
+    apply()
+    // En mode « système », on suit les changements du réglage de l'appareil.
+    const system = matchMedia('(prefers-color-scheme: dark)')
+    system.addEventListener('change', apply)
+    return () => system.removeEventListener('change', apply)
+  }, [theme])
+
   return (
     <Routes>
       <Route path="/login" element={<AuthPage mode="login" />} />

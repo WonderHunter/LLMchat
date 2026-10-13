@@ -49,7 +49,7 @@ export function Composer({ streaming, disabled, onSend, onStop }: ComposerProps)
         className="block w-full resize-none bg-transparent px-5 pt-4 pb-1 text-[15px] leading-relaxed outline-none placeholder:text-muted"
       />
       <div className="flex items-center justify-between px-3 pb-3">
-        <span className="pl-2 text-xs text-muted">Entrée pour envoyer, Maj + Entrée pour un saut de ligne</span>
+        <span className="pl-2 text-xs text-muted max-sm:invisible">Entrée pour envoyer, Maj + Entrée pour un saut de ligne</span>
         {streaming ? (
           <button
             type="button"

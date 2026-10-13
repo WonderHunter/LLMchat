@@ -1,4 +1,4 @@
-import { LogOut, PanelLeftClose, Pencil, Settings, SquarePen, Trash2 } from 'lucide-react'
+import { LogOut, Moon, PanelLeftClose, Pencil, Settings, SquarePen, Sun, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client'
@@ -10,7 +10,7 @@ import {
   useRenameConversation,
 } from '../api/hooks'
 import type { Conversation } from '../api/types'
-import { useChat } from '../chat/store'
+import { isDark, useChat } from '../chat/store'
 import { Logo } from './Logo'
 
 const DAY = 86_400_000
@@ -134,6 +134,9 @@ export function Sidebar() {
   const { data: user } = useMe()
   const toggleSidebar = useChat((state) => state.toggleSidebar)
   const setSettingsOpen = useChat((state) => state.setSettingsOpen)
+  const theme = useChat((state) => state.theme)
+  const setTheme = useChat((state) => state.setTheme)
+  const dark = isDark(theme)
   const navigate = useNavigate()
 
   async function logout() {
@@ -143,7 +146,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-sidebar">
+    <aside className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-sidebar max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-30 max-md:shadow-2xl">
       <div className="flex items-center justify-between px-3 pt-3 pb-2">
         <NavLink to="/" className="flex items-center gap-2 px-1">
           <Logo />
@@ -193,6 +196,15 @@ export function Sidebar() {
         <span className="min-w-0 flex-1 truncate px-1 text-sm" title={user?.email}>
           {user?.email}
         </span>
+        <button
+          type="button"
+          onClick={() => setTheme(dark ? 'light' : 'dark')}
+          title={dark ? 'Thème clair' : 'Thème sombre'}
+          aria-label={dark ? 'Thème clair' : 'Thème sombre'}
+          className={iconButton}
+        >
+          {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+        </button>
         <button
           type="button"
           onClick={() => setSettingsOpen(true)}

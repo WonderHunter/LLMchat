@@ -10,15 +10,26 @@ export interface StreamState {
   text: string
 }
 
+export interface Artifact {
+  language: string
+  code: string
+}
+
+export type Theme = 'system' | 'light' | 'dark'
+
 interface ChatState {
   selection: Selection | null
   stream: StreamState | null
   error: { conversationId: string | null; message: string } | null
   sidebarOpen: boolean
   settingsOpen: boolean
+  artifact: Artifact | null
+  theme: Theme
   setSelection: (selection: Selection) => void
   toggleSidebar: () => void
   setSettingsOpen: (open: boolean) => void
+  setArtifact: (artifact: Artifact | null) => void
+  setTheme: (theme: Theme) => void
 }
 
 export const useChat = create<ChatState>()(
@@ -29,13 +40,26 @@ export const useChat = create<ChatState>()(
       error: null,
       sidebarOpen: true,
       settingsOpen: false,
+      artifact: null,
+      theme: 'system',
       setSelection: (selection) => set({ selection }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+      setArtifact: (artifact) => set({ artifact }),
+      setTheme: (theme) => set({ theme }),
     }),
     {
+      // Clé lue aussi par le script de index.html, qui applique le thème avant le premier rendu.
       name: 'llmchat',
-      partialize: (state) => ({ selection: state.selection, sidebarOpen: state.sidebarOpen }),
+      partialize: (state) => ({
+        selection: state.selection,
+        sidebarOpen: state.sidebarOpen,
+        theme: state.theme,
+      }),
     },
   ),
 )
+
+export function isDark(theme: Theme): boolean {
+  return theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+}
