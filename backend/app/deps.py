@@ -14,9 +14,9 @@ def get_current_user(
     session: SessionDep,
     token: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
 ) -> User:
-    user_id = read_session_token(token) if token else None
-    user = session.get(User, user_id) if user_id is not None else None
-    if user is None:
+    claims = read_session_token(token) if token else None
+    user = session.get(User, claims[0]) if claims else None
+    if user is None or user.token_version != claims[1]:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Non authentifié")
     return user
 

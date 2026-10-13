@@ -31,14 +31,20 @@ def test_init_db_can_run_again_without_touching_data():
 
 def test_database_created_before_migrations_is_adopted_with_its_data():
     reset_database()
-    # Comme le faisait la première version : tables créées directement, sans suivi de version.
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        session.add(User(email="ancien@example.com", password_hash="x"))
-        session.commit()
+    # Comme le laissait la première version : le schéma initial, sans suivi de version.
+    init_db("0001")
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE alembic_version")
+        connection.exec_driver_sql(
+            "INSERT INTO user (email, password_hash, created_at) "
+            "VALUES ('ancien@example.com', 'x', '2026-10-13 08:00:00')"
+        )
 
     init_db()
 
     assert "alembic_version" in inspect(engine).get_table_names()
     with Session(engine) as session:
-        assert session.exec(select(User)).one().email == "ancien@example.com"
+        adopted = session.exec(select(User)).one()
+    assert adopted.email == "ancien@example.com"
+    # La colonne ajoutée depuis est remplie pour les comptes existants.
+    assert adopted.token_version == 0
