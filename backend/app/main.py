@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from app.config import ROOT_DIR, get_settings
@@ -29,6 +29,29 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="LLMchat", lifespan=lifespan)
 for module in (auth, keys, models, conversations, chat):
     app.include_router(module.router)
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "same-origin",
+    "X-Frame-Options": "DENY",
+    # Pas de « script-src » : l'aperçu des pages générées exécute leurs scripts dans une
+    # iframe isolée, et celle-ci hérite de la politique de la page.
+    "Content-Security-Policy": (
+        "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    ),
+}
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    if get_settings().cookie_secure:
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
 
 
 @app.get("/api/health")

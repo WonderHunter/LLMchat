@@ -117,6 +117,7 @@ async def stream_reply(
         # Exécuté aussi quand le client coupe la connexion : la réponse partielle est gardée.
         saved = _save_reply(conversation_id, provider.id, model.id, "".join(parts))
     if error is not None:
+        logger.warning("Génération interrompue chez %s (%s)", provider.id, error.code)
         yield _sse("error", {"code": error.code, "message": error.message})
     yield _sse("done", {"message": saved})
 
