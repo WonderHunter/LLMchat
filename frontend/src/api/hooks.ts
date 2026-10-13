@@ -36,7 +36,7 @@ export function useAuthConfig() {
   return useQuery({
     queryKey: ['auth-config'],
     staleTime: Infinity,
-    queryFn: () => api<{ allow_registration: boolean }>('/api/auth/config'),
+    queryFn: () => api<{ allow_registration: boolean; demo: boolean }>('/api/auth/config'),
   })
 }
 

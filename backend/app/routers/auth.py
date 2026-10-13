@@ -39,7 +39,8 @@ def _set_session_cookie(response: Response, user_id: int) -> None:
 
 @router.get("/config")
 def auth_config() -> dict[str, bool]:
-    return {"allow_registration": get_settings().allow_registration}
+    settings = get_settings()
+    return {"allow_registration": settings.allow_registration, "demo": settings.demo_mode}
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)

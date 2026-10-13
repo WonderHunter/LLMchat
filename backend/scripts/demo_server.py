@@ -29,6 +29,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{DEMO_DB.as_posix()}"
 os.environ["SECRET_KEY"] = secrets.token_urlsafe(48)
 os.environ["FERNET_KEY"] = Fernet.generate_key().decode()
 os.environ["CATALOG_REFRESH_MINUTES"] = "0"
+os.environ["DEMO_MODE"] = "true"
 
 import uvicorn  # noqa: E402
 from sqlmodel import Session  # noqa: E402

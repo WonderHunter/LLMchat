@@ -7,6 +7,7 @@ import { useChat } from '../chat/store'
 import { useSelection } from '../chat/useSelection'
 import { ArtifactPanel } from '../components/ArtifactPanel'
 import { Composer } from '../components/Composer'
+import { DemoBanner } from '../components/DemoBanner'
 import { Logo } from '../components/Logo'
 import { MessageList } from '../components/MessageList'
 import { ModelPicker } from '../components/ModelPicker'
@@ -120,6 +121,7 @@ export function ChatPage() {
         </>
       )}
       <main className="flex min-w-0 flex-1 flex-col">
+        <DemoBanner />
         <header className="flex h-14 shrink-0 items-center gap-1 px-3">
           {!sidebarOpen && (
             <button

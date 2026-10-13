@@ -50,7 +50,7 @@ def test_register_closed(client, monkeypatch):
         "/api/auth/register", json={"email": "alice@example.com", "password": PASSWORD}
     )
     assert response.status_code == 403
-    assert client.get("/api/auth/config").json() == {"allow_registration": False}
+    assert client.get("/api/auth/config").json() == {"allow_registration": False, "demo": False}
 
 
 def test_login_logout(client, user):
