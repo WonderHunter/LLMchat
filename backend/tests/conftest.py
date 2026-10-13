@@ -78,9 +78,15 @@ def providers(monkeypatch) -> dict[str, FakeProvider]:
     return fakes
 
 
+def reset_database() -> None:
+    SQLModel.metadata.drop_all(engine)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
+
+
 @pytest.fixture
 def client():
-    SQLModel.metadata.drop_all(engine)
+    reset_database()
     catalog.clear()
     with TestClient(app) as test_client:
         yield test_client
