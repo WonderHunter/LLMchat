@@ -43,7 +43,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     <main className="flex min-h-full items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <Logo className="size-12" />
+          <Logo className="size-16" />
           <h1 className="font-serif text-3xl">
             {registering ? 'Créer un compte' : 'Bon retour sur LLMchat'}
           </h1>

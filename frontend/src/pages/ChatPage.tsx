@@ -139,7 +139,7 @@ export function ChatPage() {
           <div className="flex flex-1 flex-col items-center justify-center px-4 pb-24">
             <div className="w-full max-w-2xl">
               <div className="mb-8 flex flex-col items-center gap-4 text-center">
-                <Logo className="size-12" />
+                <Logo className="size-16" />
                 <h1 className="font-serif text-4xl">{greeting(user?.email)}</h1>
                 <p className="text-muted">Par quoi on commence ?</p>
               </div>
