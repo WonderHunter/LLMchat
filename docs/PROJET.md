@@ -33,13 +33,14 @@ ChatGPT et de Claude. Sa particularité est le **BYOK** (*bring your own key*) :
 ne paie aucun modèle. Chaque utilisateur crée un compte, enregistre sa propre clé API chez un
 ou plusieurs fournisseurs, et discute avec les modèles auxquels sa clé donne accès.
 
-Trois fournisseurs sont pris en charge :
+Quatre fournisseurs sont pris en charge :
 
 | Fournisseur | Ce qu'il apporte | Particularité dans l'app |
 | --- | --- | --- |
 | **OpenRouter** | Un guichet unique vers des centaines de modèles, dont des gratuits (suffixe `:free`) | Limité aux modèles gratuits par défaut ; l'utilisateur peut autoriser les payants |
 | **OpenAI** | Les modèles GPT | Liste des modèles lue avec la clé de l'utilisateur |
 | **Anthropic** | Les modèles Claude | Liste des modèles lue avec la clé de l'utilisateur |
+| **1min.AI** | Une seule clé pour des modèles de plusieurs éditeurs (OpenAI, DeepSeek, Qwen, Mistral…), payés en crédits | Texte seul : aucun de ses modèles ne lit les images |
 
 Ce qu'un utilisateur peut faire :
 
@@ -73,8 +74,9 @@ navigateur, et un serveur Python qui détient les données et parle aux fourniss
 │  React             │ ─────► │  /api/auth      comptes      │ ─────► │  OpenRouter    │
 │  (interface)       │ cookie │  /api/keys      clés         │  clé   │  OpenAI        │
 │                    │        │  /api/models    catalogue    │  de    │  Anthropic     │
-│                    │ ◄───── │  /api/chat      discussion   │ l'usa- │                │
-│                    │  flux  │  /api/attachments fichiers   │  ger   │                │
+│                    │        │                              │ l'uti- │  1min.AI       │
+│                    │ ◄───── │  /api/chat      discussion   │ lisa-  │                │
+│                    │  flux  │  /api/attachments fichiers   │ teur   │                │
 └────────────────────┘  SSE   │                              │        └────────────────┘
                               │        SQLite (un fichier)   │
                               └──────────────────────────────┘
@@ -190,7 +192,7 @@ LLMchat/
 │   │   ├── attachments.py    règles et lecture des fichiers joints
 │   │   ├── providers/        un connecteur par fournisseur
 │   │   │   ├── base.py           interface commune et erreurs
-│   │   │   ├── openai_compat.py  OpenRouter et OpenAI
+│   │   │   ├── openai_compat.py  OpenRouter, OpenAI et 1min.AI
 │   │   │   ├── anthropic.py      Anthropic
 │   │   │   └── registry.py       la liste des fournisseurs disponibles
 │   │   ├── services/catalog.py   catalogue des modèles
@@ -200,7 +202,7 @@ LLMchat/
 │   ├── scripts/
 │   │   ├── init_env.py       crée .env avec des secrets générés
 │   │   └── demo_server.py    serveur de démonstration, fournisseurs simulés
-│   └── tests/                128 tests
+│   └── tests/                138 tests
 │
 └── frontend/
     ├── package.json          dépendances
@@ -372,22 +374,22 @@ voit que ces cas, chacun avec un message en français affichable tel quel.
 | `ProviderUnavailable` | Fournisseur injoignable |
 | `ProviderError` | Tout le reste |
 
-Les trois connecteurs :
+Les quatre connecteurs :
 
-| | OpenRouter | OpenAI | Anthropic |
-| --- | --- | --- | --- |
-| Fichier | `openai_compat.py` | `openai_compat.py` | `anthropic.py` |
-| Bibliothèque | SDK `openai` (adresse changée) + `httpx` | SDK `openai` | SDK `anthropic` |
-| Vérification de clé | `GET /api/v1/key` | Liste des modèles | Liste des modèles |
-| Liste des modèles | Catalogue public, sans clé | Avec la clé, filtrée sur le nom | Avec la clé |
-| Sait si un modèle lit les images | Oui (catalogue) | Non : déduit du nom | Oui (capacités du modèle) |
-| Donne les prix | Oui | Non | Non |
-| Donne le coût d'une réponse | Oui | Non | Non |
+| | OpenRouter | OpenAI | Anthropic | 1min.AI |
+| --- | --- | --- | --- | --- |
+| Fichier | `openai_compat.py` | `openai_compat.py` | `anthropic.py` | `openai_compat.py` |
+| Bibliothèque | SDK `openai` (adresse changée) + `httpx` | SDK `openai` | SDK `anthropic` | SDK `openai` (adresse changée) |
+| Vérification de clé | `GET /api/v1/key` | Liste des modèles | Liste des modèles | Liste des modèles |
+| Liste des modèles | Catalogue public, sans clé | Avec la clé, filtrée sur le nom | Avec la clé | Avec la clé |
+| Sait si un modèle lit les images | Oui (catalogue) | Non : déduit du nom | Oui (capacités du modèle) | Aucun ne les lit |
+| Donne les prix | Oui | Non | Non | Non (crédits) |
+| Donne le coût d'une réponse | Oui | Non | Non | Non |
 
 Détails qui comptent :
 
-- **OpenRouter et OpenAI partagent un connecteur** parce qu'ils parlent le même protocole
-  (« chat completions »). Seules l'adresse et quelques options diffèrent.
+- **OpenRouter, OpenAI et 1min.AI partagent un connecteur** parce qu'ils parlent le même
+  protocole (« chat completions »). Seules l'adresse et quelques options diffèrent.
 - **OpenAI ne dit pas** quels modèles sont des modèles de chat, ni lesquels lisent les images.
   Le connecteur filtre donc sur le nom (`gpt-…`, `o3…`) et exclut les modèles audio, image,
   etc. C'est une heuristique : un futur modèle au nom inhabituel peut manquer.
@@ -395,6 +397,18 @@ Détails qui comptent :
   maximale de la réponse est obligatoire (ici le plafond du modèle, sans dépasser 64 000
   tokens), et les images se placent avant le texte. Si un modèle refuse de répondre, le
   connecteur le signale comme une erreur.
+- **1min.AI** ([sa documentation](https://docs.1min.ai/docs/api/openai-compatible)) a ses
+  propres règles :
+  - tous ses modèles sont en texte seul, même ceux dont le nom contient « vl » ;
+  - il demande de ne jamais relancer une requête échouée, car chaque essai réserve des
+    crédits : le connecteur ne fait aucune nouvelle tentative ;
+  - une coupure peut fermer le flux sans message d'erreur : une réponse qui s'arrête sans
+    l'indication de fin est signalée comme interrompue ;
+  - une requête est limitée à 100 000 caractères et 200 messages. Au-delà, il la refuse, et
+    l'application affiche sa raison ;
+  - la réponse est plafonnée par défaut à 4 096 tokens ;
+  - la consommation est comptée en tokens, la facturation en crédits : l'application
+    affiche les tokens, sans coût en dollars.
 
 ### 6.5 Le catalogue de modèles (`services/catalog.py`)
 
@@ -403,7 +417,7 @@ Deux régimes, parce que les fournisseurs ne fonctionnent pas pareil :
 - **OpenRouter** : son catalogue est public et identique pour tous. Une tâche de fond le
   télécharge au démarrage puis toutes les 30 minutes, et le garde en mémoire pour tous les
   utilisateurs. Si un rafraîchissement échoue, la dernière liste connue reste servie.
-- **OpenAI et Anthropic** : la liste dépend de la clé. Elle est lue à la demande avec la clé de
+- **OpenAI, Anthropic et 1min.AI** : la liste dépend de la clé. Elle est lue à la demande avec la clé de
   l'utilisateur, puis gardée une heure. Elle est oubliée dès qu'il change de clé.
 
 Le réglage `free_only` s'applique à la lecture : la liste OpenRouter d'un utilisateur est le
@@ -503,8 +517,8 @@ sortie, et parfois le coût. Le coût enregistré suit cet ordre de priorité :
 3. un calcul à partir des prix du catalogue, quand ils sont connus ;
 4. sinon, rien.
 
-OpenAI et Anthropic ne publient pas leurs prix par leur API : pour eux, l'application affiche
-les tokens sans le coût. Coder les prix en dur les rendrait faux au premier changement de
+OpenAI et Anthropic ne publient pas leurs prix par leur API, et 1min.AI facture en crédits :
+pour eux, l'application affiche les tokens sans le coût. Coder les prix en dur les rendrait faux au premier changement de
 tarif.
 
 ---
@@ -670,7 +684,7 @@ seconde, les clés enregistrées sont illisibles.
 
 ## 10. Tests
 
-128 tests côté serveur, lancés par `uv run pytest` dans `backend/`. Aucun n'appelle un service
+138 tests côté serveur, lancés par `uv run pytest` dans `backend/`. Aucun n'appelle un service
 extérieur.
 
 | Fichier | Ce qui est vérifié |
@@ -686,6 +700,7 @@ extérieur.
 | `test_edit.py` | Modification d'une question, refus, cloisonnement |
 | `test_usage.py` | Tokens et coût, pour chaque cas de calcul |
 | `test_attachments.py` | Types acceptés et refusés, limites, transmission aux modèles, suppressions |
+| `test_onemin.py` | Connecteur 1min.AI : adresse, aucune relance, erreurs, flux coupé, modèles |
 | `test_migrations.py` | Migrations fidèles aux modèles, reprise d'une ancienne base |
 | `test_health.py` | Le serveur répond |
 
@@ -774,6 +789,7 @@ Les fonctionnalités, dans l'ordre où elles ont été construites :
 | `modifier-message` | Édition d'une question |
 | `pieces-jointes` | Images et fichiers |
 | `synthese-projet` | Ce document |
+| `fournisseur-1min` | Quatrième fournisseur : 1min.AI |
 
 ---
 
@@ -821,8 +837,9 @@ d'OpenRouter qui n'existent dans aucun SDK.
 
 ### Ce qui n'a pas été vérifié en conditions réelles
 
-- **OpenAI et Anthropic avec de vraies clés.** Leurs connecteurs sont testés contre des
-  réponses simulées. Seul OpenRouter a été utilisé pour de vrai, avec des modèles gratuits.
+- **OpenAI, Anthropic et 1min.AI avec de vraies clés.** Leurs connecteurs sont testés contre
+  des réponses simulées. Seul OpenRouter a été utilisé pour de vrai, avec des modèles
+  gratuits. Pour 1min.AI, seul le rejet d'une fausse clé par sa vraie API a été vérifié.
 - **Le déploiement HTTPS.** L'image Docker a tourné en local, pièces jointes comprises, et les
   fichiers de configuration sont valides, mais Caddy n'a jamais obtenu de certificat pour un
   vrai domaine.
@@ -848,7 +865,7 @@ d'OpenRouter qui n'existent dans aucun SDK.
 - **PDF scannés** non lus (pas de reconnaissance de caractères).
 - **Modifier une question efface la suite**, sans garder l'ancienne version.
 - **Pas de recherche** dans les conversations, **pas de prompt système** ni de personas.
-- **Coût inconnu** pour OpenAI et Anthropic.
+- **Coût inconnu** pour OpenAI, Anthropic et 1min.AI.
 - **Pas de tests automatisés de l'interface.**
 
 ---

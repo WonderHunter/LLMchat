@@ -13,7 +13,7 @@ def test_keys_require_authentication(client, providers):
 
 def test_list_shows_every_provider_without_key(client, providers, user):
     keys = {k["provider"]: k for k in client.get("/api/keys").json()}
-    assert set(keys) == {"openrouter", "openai", "anthropic"}
+    assert set(keys) == {"openrouter", "openai", "anthropic", "onemin"}
     assert not any(k["has_key"] for k in keys.values())
     assert keys["openrouter"]["free_only"] is True
     assert keys["openai"]["free_only"] is None
