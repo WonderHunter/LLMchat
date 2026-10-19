@@ -47,6 +47,8 @@ class OpenAICompatProvider(Provider):
     max_retries = 1
     # Champs ajoutés au corps de la requête de chat, propres à un fournisseur.
     extra_body: dict | None = None
+    # Signaler une réponse dont le flux s'est fermé sans dire qu'elle était finie.
+    require_finish_reason = False
     # Transport httpx2 injecté par les tests ; None en fonctionnement normal.
     transport = None
 
@@ -72,15 +74,25 @@ class OpenAICompatProvider(Provider):
         if isinstance(exc, openai.APIStatusError):
             if exc.status_code == 402:
                 return InsufficientCredit(self.label)
+            if exc.status_code in (400, 422):
+                # Requête refusée (trop longue, paramètre non pris en charge…) : le message
+                # du fournisseur est le seul à dire pourquoi.
+                return ProviderError(f"{self.label} a refusé la requête : {exc.message}")
             return ProviderError(f"{self.label} a renvoyé une erreur ({exc.status_code}).")
         if isinstance(exc, openai.APIConnectionError):
             return ProviderUnavailable(self.label)
+        if isinstance(exc, openai.APIError):
+            # Erreur envoyée au milieu du flux, une fois la réponse commencée.
+            if getattr(exc, "code", None) == "insufficient_quota":
+                return InsufficientCredit(self.label)
+            return ProviderError(f"{self.label} a interrompu la réponse : {exc.message}")
         return ProviderError(f"{self.label} a renvoyé une erreur inattendue.")
 
     async def stream_chat(
         self, key: str, model: ModelInfo, messages: list[ChatMessage]
     ) -> AsyncIterator[str | Usage]:
         usage = None
+        finished = False
         try:
             async with self._client(key) as client:
                 stream = await client.chat.completions.create(
@@ -94,6 +106,8 @@ class OpenAICompatProvider(Provider):
                 async for chunk in stream:
                     if chunk.choices and (text := chunk.choices[0].delta.content):
                         yield text
+                    if chunk.choices and chunk.choices[0].finish_reason:
+                        finished = True
                     if chunk.usage:
                         usage = Usage(
                             input_tokens=chunk.usage.prompt_tokens,
@@ -105,6 +119,15 @@ class OpenAICompatProvider(Provider):
             raise self._translate(exc) from exc
         if usage:
             yield usage
+        if self.require_finish_reason and not finished:
+            raise ProviderError(f"La réponse de {self.label} s'est arrêtée avant la fin.")
+
+    async def _list(self, key: str) -> list:
+        try:
+            async with self._client(key) as client:
+                return [model async for model in client.models.list()]
+        except openai.OpenAIError as exc:
+            raise self._translate(exc) from exc
 
 
 class OpenAIProvider(OpenAICompatProvider):
@@ -129,13 +152,6 @@ class OpenAIProvider(OpenAICompatProvider):
         "codex",
     )
 
-    async def _list(self, key: str) -> list:
-        try:
-            async with self._client(key) as client:
-                return [model async for model in client.models.list()]
-        except openai.OpenAIError as exc:
-            raise self._translate(exc) from exc
-
     async def validate_key(self, key: str) -> None:
         await self._list(key)
 
@@ -152,6 +168,32 @@ class OpenAIProvider(OpenAICompatProvider):
             )
             for model in models
         ]
+
+
+class OneMinProvider(OpenAICompatProvider):
+    """1min.AI : une seule clé pour des modèles de plusieurs éditeurs, payés en crédits.
+
+    Particularités, d'après sa documentation : tous ses modèles sont texte seul, il ne publie
+    pas de prix en dollars, et il demande de ne pas relancer une requête échouée (chaque
+    essai réserve des crédits).
+    """
+
+    id = "onemin"
+    label = "1min.AI"
+    keys_url = "https://app.1min.ai/api"
+    base_url = "https://api.1min.ai/openai/v1"
+    max_retries = 0
+    # Une coupure de connexion peut clore le flux sans message d'erreur.
+    require_finish_reason = True
+
+    async def validate_key(self, key: str) -> None:
+        await self._list(key)
+
+    async def list_models(self, key: str | None) -> list[ModelInfo]:
+        models = await self._list(key or "")
+        # Regroupés par éditeur (owned_by), puis par nom.
+        models.sort(key=lambda model: (getattr(model, "owned_by", "") or "", model.id))
+        return [ModelInfo(id=model.id, name=model.id) for model in models]
 
 
 class OpenRouterProvider(OpenAICompatProvider):

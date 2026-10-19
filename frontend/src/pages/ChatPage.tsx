@@ -82,7 +82,7 @@ export function ChatPage() {
       <div className="flex flex-col items-center gap-3 rounded-3xl border border-border bg-surface px-6 py-6 text-center">
         <KeyRound className="size-6 text-accent" />
         <p className="text-sm text-muted">
-          Ajoutez une clé OpenRouter, OpenAI ou Anthropic pour commencer à discuter.
+          Ajoutez une clé OpenRouter, OpenAI, Anthropic ou 1min.AI pour commencer à discuter.
         </p>
         <button
           type="button"

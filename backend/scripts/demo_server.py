@@ -163,6 +163,7 @@ DEMO_PROVIDERS = [
         "openai", "OpenAI", [ModelInfo(id="gpt-demo", name="gpt-demo", accepts_images=True)]
     ),
     DemoProvider("anthropic", "Anthropic", [ModelInfo(id="claude-demo", name="Claude Démo")]),
+    DemoProvider("onemin", "1min.AI", [ModelInfo(id="mistral-demo", name="mistral-demo")]),
 ]
 
 

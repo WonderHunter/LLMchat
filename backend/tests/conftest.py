@@ -76,6 +76,7 @@ def providers(monkeypatch) -> dict[str, FakeProvider]:
         "anthropic": FakeProvider(
             "anthropic", [ModelInfo(id="claude-test", name="Claude Test", max_output_tokens=8000)]
         ),
+        "onemin": FakeProvider("onemin", [ModelInfo(id="mistral-test", name="mistral-test")]),
     }
     for provider_id, fake in fakes.items():
         monkeypatch.setitem(PROVIDERS, provider_id, fake)

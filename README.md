@@ -1,7 +1,7 @@
 # LLMchat
 
 Webapp de chat multi-utilisateurs. Chaque utilisateur apporte sa propre clé API (BYOK) pour
-OpenRouter, OpenAI ou Anthropic, et discute avec les modèles auxquels sa clé donne accès.
+OpenRouter, OpenAI, Anthropic ou 1min.AI, et discute avec les modèles auxquels sa clé donne accès.
 
 - **Backend** : Python 3.13, FastAPI, SQLite (SQLModel).
 - **Frontend** : React, Vite, Tailwind.
@@ -161,7 +161,7 @@ Les tests du backend n'appellent aucun service externe : les fournisseurs sont s
 
 ```
 backend/app/
-  providers/     un connecteur par fournisseur (OpenRouter, OpenAI, Anthropic)
+  providers/     un connecteur par fournisseur (OpenRouter, OpenAI, Anthropic, 1min.AI)
   services/      catalogue de modèles (rafraîchi en tâche de fond pour OpenRouter)
   routers/       auth, clés, modèles, conversations, chat (SSE)
 frontend/src/
